@@ -36,20 +36,22 @@ cd vpnctl
 just test  # or: make test
 ```
 
-### Container Development
+### Container Development 
 For consistent development across distributions:
 
 ```bash
-# Build all container environments
-just build-containers
+# Build container environments
+podman build -t vpnctl:arch -f Containerfile .
+podman build -t vpnctl:ubuntu -f Containerfile.ubuntu .
+podman build -t vpnctl:fedora -f Containerfile.fedora .
 
-# Test across all distributions  
-just test-containers
+# Test in specific container
+podman run --rm -v $(pwd):/vpnctl:Z -w /vpnctl vpnctl:arch test
+podman run --rm -v $(pwd):/vpnctl:Z -w /vpnctl vpnctl:ubuntu test  
+podman run --rm -v $(pwd):/vpnctl:Z -w /vpnctl vpnctl:fedora test
 
-# Development shell in specific environment
-just shell-container-arch    # Arch Linux
-just shell-container-ubuntu  # Ubuntu
-just shell-container-fedora  # Fedora
+# Development shell in container
+podman run --rm -it -v $(pwd):/vpnctl:Z -w /vpnctl vpnctl:arch bash
 ```
 
 ## 📏 Code Guidelines
@@ -72,8 +74,25 @@ just shell-container-fedora  # Fedora
 ### Testing Requirements
 - **All new features** must include tests
 - **Bug fixes** should include regression tests  
-- **Tests** must pass on all supported distributions
+- **Tests** must pass on all supported distributions (Arch, Ubuntu, Fedora)
+- **CI/CD Pipeline** must pass all checks before merge
 - **Use** BATS framework for shell script testing
+- **15 existing tests** provide comprehensive coverage baseline
+
+### Automated CI/CD Pipeline
+Every PR and push triggers comprehensive testing:
+
+**Pipeline Stages:**
+1. **🔍 Lint & Validate** - ShellCheck and project structure
+2. **🔒 Security & Quality** - Secret scanning and security checks
+3. **🧪 Multi-Distribution Testing**:
+   - Arch Linux (primary development environment)
+   - Ubuntu 22.04 (wide compatibility)
+   - Fedora (RHEL ecosystem)
+4. **📚 Documentation** - Completeness verification
+5. **📦 Installation** - Script validation across all environments
+
+**All stages must pass** for PR approval.
 
 ## 📝 Commit Guidelines
 
@@ -129,7 +148,9 @@ git commit -m "test: add DNS management test coverage"
 - **Clear title** describing the change
 - **Detailed description** of what and why
 - **Link** to related issues
-- **Test results** from multiple distributions (if possible)
+- **All CI checks must pass** (automatic via branch protection)
+- **Tests** must pass on all distributions
+- **No review required** (solo development phase)
 - **Screenshots/demos** for UI changes
 
 ### PR Template
@@ -154,6 +175,22 @@ Brief description of changes
 - [ ] Documentation updated
 - [ ] No breaking changes (or properly documented)
 ```
+
+### Branch Protection & Status Checks
+The `master` branch is protected with the following requirements:
+- ✅ **All CI status checks** must pass
+- ✅ **No force pushes** allowed
+- ✅ **No branch deletion** allowed
+- ❌ **Review requirements** disabled (solo development)
+
+**Required Status Checks:**
+- `CI/CD Pipeline/🔍 Lint & Validate`
+- `CI/CD Pipeline/🔒 Security & Quality`
+- `CI/CD Pipeline/🧪 Test on arch`
+- `CI/CD Pipeline/🧪 Test on ubuntu` 
+- `CI/CD Pipeline/🧪 Test on fedora`
+
+🚨 **Important**: PRs cannot be merged until all checks pass!
 
 ## 🧪 Testing
 

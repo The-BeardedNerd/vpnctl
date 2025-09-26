@@ -103,15 +103,13 @@ teardown() {
     rm -rf "$FRESH_TMPDIR"
 }
 
-@test "vpnctl creates XDG-compliant directories" {
+@test "vpnctl creates appropriate directories" {
     # Verify the test environment is properly set up
     echo "# XDG_CONFIG_HOME: $XDG_CONFIG_HOME" >&3
     echo "# XDG_STATE_HOME: $XDG_STATE_HOME" >&3
     echo "# XDG_RUNTIME_DIR: $XDG_RUNTIME_DIR" >&3
     echo "# TEST_TMPDIR: $TEST_TMPDIR" >&3
-    
-    # Ensure directories don't exist yet
-    [ ! -d "$XDG_CONFIG_HOME/vpnctl" ] || echo "# Config dir already exists" >&3
+    echo "# EUID: $EUID" >&3
     
     # Run a command that should create directories (capture both stdout and stderr)
     run "$VPNCTL_BIN" list
@@ -122,12 +120,26 @@ teardown() {
     # Debug: Show what got created
     echo "# Directories after list command:" >&3
     find "$TEST_TMPDIR" -type d 2>/dev/null | sort >&3 || echo "# No directories found" >&3
+    find /etc/vpnctl -type d 2>/dev/null | sort >&3 || echo "# No system directories found" >&3
+    find /var/log/vpnctl -type d 2>/dev/null | sort >&3 || echo "# No log directories found" >&3
+    find /run/vpnctl -type d 2>/dev/null | sort >&3 || echo "# No runtime directories found" >&3
     
-    # Check that XDG directories are created (with better error messages)
-    [ -d "$XDG_CONFIG_HOME/vpnctl" ] || { echo "# Missing: $XDG_CONFIG_HOME/vpnctl" >&3; false; }
-    [ -d "$XDG_CONFIG_HOME/vpnctl/profiles" ] || { echo "# Missing: $XDG_CONFIG_HOME/vpnctl/profiles" >&3; false; }
-    [ -d "$XDG_STATE_HOME/vpnctl/logs" ] || { echo "# Missing: $XDG_STATE_HOME/vpnctl/logs" >&3; false; }
-    [ -d "$XDG_RUNTIME_DIR/vpnctl" ] || { echo "# Missing: $XDG_RUNTIME_DIR/vpnctl" >&3; false; }
+    # Check directories based on whether running as root or user
+    if [[ $EUID -eq 0 ]]; then
+        # Running as root - expect system directories
+        echo "# Testing system directories (running as root)" >&3
+        [ -d "/etc/vpnctl" ] || { echo "# Missing: /etc/vpnctl" >&3; false; }
+        [ -d "/etc/vpnctl/profiles" ] || { echo "# Missing: /etc/vpnctl/profiles" >&3; false; }
+        [ -d "/var/log/vpnctl" ] || { echo "# Missing: /var/log/vpnctl" >&3; false; }
+        [ -d "/run/vpnctl" ] || { echo "# Missing: /run/vpnctl" >&3; false; }
+    else
+        # Running as user - expect XDG directories
+        echo "# Testing XDG directories (running as user)" >&3
+        [ -d "$XDG_CONFIG_HOME/vpnctl" ] || { echo "# Missing: $XDG_CONFIG_HOME/vpnctl" >&3; false; }
+        [ -d "$XDG_CONFIG_HOME/vpnctl/profiles" ] || { echo "# Missing: $XDG_CONFIG_HOME/vpnctl/profiles" >&3; false; }
+        [ -d "$XDG_STATE_HOME/vpnctl/logs" ] || { echo "# Missing: $XDG_STATE_HOME/vpnctl/logs" >&3; false; }
+        [ -d "$XDG_RUNTIME_DIR/vpnctl" ] || { echo "# Missing: $XDG_RUNTIME_DIR/vpnctl" >&3; false; }
+    fi
 }
 
 @test "vpnctl status command executes" {

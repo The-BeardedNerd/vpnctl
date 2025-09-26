@@ -1,0 +1,43 @@
+[vpnctl]
+# VPNCTL Configuration Template
+# Copy this file to config.ini and customize for your needs
+# config.ini is excluded from git for security
+
+# Default VPN backend (openvpn, wireguard)
+default_backend=openvpn
+
+# Auto-connect behavior
+auto_connect=false
+auto_reconnect=true
+
+# DNS settings
+manage_dns=true
+dns_servers=1.1.1.1,1.0.0.1
+
+# Logging
+log_level=info
+max_log_size=10M
+max_log_files=5
+
+# Firewall settings
+enable_firewall=false
+block_on_disconnect=false
+
+# Profiles
+default_profile=
+
+[openvpn]
+# OpenVPN specific settings
+config_dir=/etc/openvpn
+auth_user_pass=false
+verify_x509_name=true
+
+[wireguard]
+# WireGuard specific settings
+config_dir=/etc/wireguard
+persistent_keepalive=25
+
+[dns]
+# DNS management settings
+backup_resolv_conf=true
+use_systemd_resolved=auto

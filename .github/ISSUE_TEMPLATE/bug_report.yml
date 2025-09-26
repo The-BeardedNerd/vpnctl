@@ -1,0 +1,137 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior in VPNCTL
+title: "[BUG] "
+labels: ["bug", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug! Please fill out the information below to help us understand and reproduce the issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Run command '...'
+        2. Enter configuration '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: Describe what should have happened...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: Describe what actually happened...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: distribution
+    attributes:
+      label: Linux Distribution
+      description: Which Linux distribution are you using?
+      options:
+        - Arch Linux
+        - Ubuntu
+        - Fedora
+        - Debian
+        - CentOS/RHEL
+        - openSUSE
+        - Other (please specify in additional context)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation Method
+      description: How did you install VPNCTL?
+      options:
+        - User installation (scripts/install.sh)
+        - System installation (sudo scripts/install.sh)
+        - Manual installation
+        - Container/Development
+        - Other (please specify)
+    validations:
+      required: true
+
+  - type: textarea
+    id: version
+    attributes:
+      label: Version Information
+      description: Output of `vpnctl version`
+      placeholder: |
+        vpnctl version 0.1.0-dev
+        Copyright (c) 2025 VPNCTL Project
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log Output
+      description: Relevant log output from `vpnctl logs` or with `VPNCTL_DEBUG=1`
+      placeholder: Paste log output here...
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Relevant configuration (remove sensitive information!)
+      placeholder: |
+        Config file location: ~/.config/vpnctl/config.ini
+        VPN backend: openvpn
+        Profile type: .ovpn
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem
+      placeholder: Add any other context, screenshots, or information that might help...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: I have removed any sensitive information from logs and configuration
+          required: true
+        - label: I can reproduce this issue consistently
+          required: false

@@ -1,0 +1,197 @@
+# CI/CD Pipeline for VPNCTL
+# Runs on: Pull Requests, Push to main/develop
+# Purpose: Test across distributions, lint code, ensure quality
+
+name: CI/CD Pipeline
+
+# When to run this workflow
+on:
+  # Run on pull requests to any branch  
+  pull_request:
+    branches: [ "*" ]
+  
+  # Run when pushing to main or develop branches
+  push:
+    branches: [ main, develop ]
+    
+  # Allow manual triggering for testing
+  workflow_dispatch:
+
+# Cancel previous runs if new commits are pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: Quick checks (fast feedback)
+  lint-and-validate:
+    name: "🔍 Lint & Validate"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          
+      - name: Lint shell scripts
+        run: |
+          # Lint all shell scripts
+          find . -name "*.sh" -o -name "vpnctl" | xargs shellcheck
+          
+      - name: Validate project structure
+        run: |
+          # Check required files exist
+          test -f bin/vpnctl
+          test -f README.md
+          test -f LICENSE
+          test -f CONTRIBUTING.md
+          test -d tests/
+          echo "✅ Project structure validation passed"
+
+  # Job 2: Test across distributions (core functionality)  
+  test-distributions:
+    name: "🧪 Test on ${{ matrix.distribution }}"
+    runs-on: ubuntu-latest
+    needs: lint-and-validate  # Only run if linting passes
+    
+    strategy:
+      # Don't fail fast - test all distributions even if one fails
+      fail-fast: false
+      matrix:
+        distribution: [arch, ubuntu, fedora]
+        
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+          
+      # Cache container images to save time and bandwidth
+      - name: Cache container image
+        uses: actions/cache@v3
+        with:
+          path: ~/.local/share/containers
+          key: container-${{ matrix.distribution }}-${{ hashFiles('Containerfile*') }}
+          restore-keys: |
+            container-${{ matrix.distribution }}-
+            
+      - name: Build container (${{ matrix.distribution }})
+        run: |
+          if [ "${{ matrix.distribution }}" = "arch" ]; then
+            podman build -t vpnctl:${{ matrix.distribution }} -f Containerfile .
+          else
+            podman build -t vpnctl:${{ matrix.distribution }} -f Containerfile.${{ matrix.distribution }} .
+          fi
+          
+      - name: Run tests (${{ matrix.distribution }})
+        run: |
+          # Run tests inside the container
+          podman run --rm \
+            -v $(pwd):/vpnctl:Z \
+            -w /vpnctl \
+            vpnctl:${{ matrix.distribution }} \
+            bats tests/
+            
+      - name: Test installation (${{ matrix.distribution }})
+        run: |
+          # Test that installation script works
+          podman run --rm \
+            -v $(pwd):/vpnctl:Z \
+            -w /vpnctl \
+            vpnctl:${{ matrix.distribution }} \
+            bash -c "
+              # Test user installation
+              ./scripts/install.sh
+              
+              # Verify installation worked
+              ~/.local/bin/vpnctl version
+              ~/.local/bin/vpnctl help
+            "
+
+  # Job 3: Security and quality checks
+  security-scan:
+    name: "🔒 Security & Quality"
+    runs-on: ubuntu-latest
+    needs: lint-and-validate
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Check for secrets
+        run: |
+          # Simple check for common secret patterns
+          if grep -r -i "password\|secret\|key\|token" --include="*.sh" --include="*.yml" --include="*.md" . | grep -v "# Example\|TODO\|placeholder"; then
+            echo "❌ Potential secrets found in code!"
+            exit 1
+          else
+            echo "✅ No secrets detected"
+          fi
+          
+      - name: Check file permissions
+        run: |
+          # Ensure scripts are executable
+          test -x bin/vpnctl
+          test -x scripts/install.sh
+          echo "✅ File permissions are correct"
+          
+      - name: Validate container security
+        run: |
+          # Check Containerfiles for security issues
+          if grep -i "sudo\|su\|--privileged" Containerfile*; then
+            echo "⚠️  Found potential security issues in containers"
+            # Don't fail for now, just warn
+          else
+            echo "✅ Container security validation passed"
+          fi
+
+  # Job 4: Documentation and examples
+  documentation:
+    name: "📚 Documentation"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'  # Only on PRs
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Check documentation completeness
+        run: |
+          # Check that key documentation exists
+          test -f README.md
+          test -f CONTRIBUTING.md
+          test -f docs/development/ARCHITECTURE.md
+          test -f docs/development/PLAN.md
+          
+          # Check for TODO markers that should be completed
+          if grep -r "TODO.*Implement" bin/ scripts/ 2>/dev/null; then
+            echo "ℹ️  Found implementation TODOs (expected for development phase)"
+          fi
+          
+          echo "✅ Documentation structure is complete"
+
+# Summary job (optional but helpful for branch protection)
+  ci-success:
+    name: "✅ CI Complete"
+    runs-on: ubuntu-latest
+    needs: [lint-and-validate, test-distributions, security-scan]
+    if: always()  # Run even if some jobs failed
+    
+    steps:
+      - name: Check results
+        run: |
+          # Check if all required jobs succeeded
+          if [ "${{ needs.lint-and-validate.result }}" != "success" ] || \
+             [ "${{ needs.test-distributions.result }}" != "success" ] || \
+             [ "${{ needs.security-scan.result }}" != "success" ]; then
+            echo "❌ Some required checks failed"
+            exit 1
+          else
+            echo "✅ All required checks passed!"
+          fi

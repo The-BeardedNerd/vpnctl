@@ -1,6 +1,12 @@
 # VPNCTL: VPN Manager for Linux
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI/CD Pipeline](https://github.com/The-BeardedNerd/vpnctl/actions/workflows/ci.yml/badge.svg)](https://github.com/The-BeardedNerd/vpnctl/actions/workflows/ci.yml)
+[![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/The-BeardedNerd/vpnctl)](https://github.com/The-BeardedNerd/vpnctl/releases)
+
 **A CLI/TUI tool to manage VPN connections with XDG compliance and hybrid user/system access.**
+
+> **⚠️ Development Status**: This project is in active development. Core functionality is being implemented. See [Project Plan](docs/development/PLAN.md) for current status and roadmap.
 
 ---
 
@@ -16,19 +22,20 @@
 ## **Installation**
 ### **User-Level (Recommended)**
 ```bash
-git clone https://github.com/your/repo.git
+git clone https://github.com/The-BeardedNerd/vpnctl.git
 cd vpnctl
-./install.sh
+./scripts/install.sh
 ```
 
 ### **System-Wide**
 ```bash
-sudo ./install.sh
+sudo ./scripts/install.sh
 ```
 
 ### **Uninstall**
 ```bash
-./uninstall.sh  # or sudo ./uninstall.sh
+# TODO: Create uninstall script
+# ./scripts/uninstall.sh  # or sudo ./scripts/uninstall.sh
 ```
 
 ---
@@ -78,16 +85,26 @@ vpnctl-tui  # Launch interactive menu
 
 ---
 ## **Contributing**
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/your-feature`.
-3. Commit with [Conventional Commits](https://www.conventionalcommits.org/).
-4. Push to your fork: `git push origin feature/your-feature`
-4. Open a PR to `develop`.
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+**Quick Start for Contributors:**
+1. Fork the [repository](https://github.com/The-BeardedNerd/vpnctl)
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes and test: `just test` or `make test`
+4. Commit with [Conventional Commits](https://www.conventionalcommits.org/)
+5. Push and create a Pull Request
+
+**Development Environment:**
+- Multi-distribution testing (Arch, Ubuntu, Fedora)
+- Containerized development with Podman
+- BATS testing framework
+- Automated CI/CD pipeline
 
 ---
 ## **Releases**
 Follows [Semantic Versioning](https://semver.org/).
-- Check the [releases page](https://github.com/your/repo/releases) for stable versions.
+- Check the [releases page](https://github.com/The-BeardedNerd/vpnctl/releases) for stable versions.
 - Stable: `v1.0.0`
 - Pre-release: `v0.2.0-alpha` (may include experimental features)
 

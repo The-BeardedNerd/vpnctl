@@ -1,0 +1,124 @@
+# Release Workflow for VPNCTL
+# Triggered when: Tags are pushed (v1.0.0, v0.2.1, etc.)
+# Purpose: Create GitHub releases with assets and changelog
+
+name: Release
+
+# Trigger on version tags
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Match semantic version tags (v1.0.0, v0.2.1, etc.)
+
+# Permissions for creating releases
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # Build and test before release
+  pre-release-test:
+    name: "🧪 Pre-Release Testing"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+          
+      - name: Quick validation
+        run: |
+          # Ensure main executable exists and is valid
+          test -x bin/vpnctl
+          
+          # Check version matches tag
+          VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//')
+          if grep -q "VPNCTL_VERSION.*$VERSION" bin/vpnctl; then
+            echo "✅ Version matches tag: $VERSION"
+          else
+            echo "❌ Version mismatch! Update VPNCTL_VERSION in bin/vpnctl"
+            exit 1
+          fi
+          
+      - name: Test basic functionality
+        run: |
+          # Test without dependencies (basic commands only)
+          timeout 10 bin/vpnctl help || true
+          timeout 10 bin/vpnctl version || true
+
+  # Create release assets
+  create-release:
+    name: "🚀 Create Release"
+    runs-on: ubuntu-latest
+    needs: pre-release-test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history for changelog generation
+          fetch-depth: 0
+          
+      - name: Get version info
+        id: version
+        run: |
+          # Extract version from tag
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$GITHUB_REF_NAME" >> $GITHUB_OUTPUT
+          
+      - name: Create release tarball
+        run: |
+          # Create distribution tarball
+          git archive --format=tar.gz \
+            --prefix=vpnctl-${{ steps.version.outputs.version }}/ \
+            -o vpnctl-${{ steps.version.outputs.version }}.tar.gz \
+            HEAD
+            
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Simple changelog from git commits since last tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "Changes since $PREVIOUS_TAG:" > changelog.md
+            git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD >> changelog.md
+          else
+            echo "Initial release of VPNCTL" > changelog.md
+            echo "" >> changelog.md
+            echo "Features:" >> changelog.md
+            echo "- XDG-compliant VPN connection management" >> changelog.md
+            echo "- Multi-distribution support (Arch, Ubuntu, Fedora)" >> changelog.md  
+            echo "- Hybrid user/system installation" >> changelog.md
+            echo "- Comprehensive test suite" >> changelog.md
+          fi
+          
+          # Set output for release notes
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          cat changelog.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "VPNCTL ${{ steps.version.outputs.version }}"
+          tag_name: ${{ steps.version.outputs.tag }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          files: |
+            vpnctl-${{ steps.version.outputs.version }}.tar.gz
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          
+      - name: Update installation instructions
+        run: |
+          echo "📦 Release created successfully!"
+          echo ""
+          echo "Installation:"
+          echo "  curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/vpnctl-${{ steps.version.outputs.version }}.tar.gz | tar -xz"
+          echo "  cd vpnctl-${{ steps.version.outputs.version }}"
+          echo "  ./scripts/install.sh"

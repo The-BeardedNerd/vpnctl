@@ -1,0 +1,78 @@
+name: ❓ Question
+description: Ask a question or start a discussion about VPNCTL
+title: "[QUESTION] "
+labels: ["question", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about VPNCTL? Need help with setup or usage? Want to discuss a topic? You're in the right place!
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+      placeholder: Describe your question or topic for discussion...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: What type of question is this?
+      options:
+        - Installation/Setup
+        - Configuration
+        - Usage/How-to
+        - VPN Provider Compatibility
+        - Performance/Optimization
+        - Security
+        - Development/Contributing
+        - General Discussion
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: |
+        Provide any relevant context:
+        - What are you trying to achieve?
+        - What have you already tried?
+        - Your current setup/configuration
+      placeholder: |
+        I'm trying to...
+        I've already tried...
+        My current setup is...
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment (if relevant)
+      description: Your system information (if related to the question)
+      placeholder: |
+        - Linux distribution: 
+        - VPNCTL version: 
+        - VPN provider: 
+        - Installation method:
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Before asking
+      options:
+        - label: I have searched existing issues and discussions
+          required: true
+        - label: I have read the documentation
+          required: true

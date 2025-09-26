@@ -5,7 +5,7 @@
 
 # Test setup
 setup() {
-    # Set up test environment
+    # Set up test environment with unique directory per test
     export VPNCTL_DEBUG=0
     export TEST_TMPDIR="$(mktemp -d)"
     export XDG_CONFIG_HOME="$TEST_TMPDIR/.config"
@@ -17,6 +17,9 @@ setup() {
     
     # Mock dependencies for testing
     export PATH="$BATS_TEST_DIRNAME/mocks:$PATH"
+    
+    # Ensure clean environment for each test
+    unset VPNCTL_LOG_FILE
 }
 
 # Test teardown
@@ -77,28 +80,52 @@ teardown() {
 }
 
 @test "vpnctl logs shows no log file message when no logs exist" {
-    run "$VPNCTL_BIN" logs 2>/dev/null
+    # Create completely fresh environment just for this test
+    local FRESH_TMPDIR="$(mktemp -d)"
+    local FRESH_XDG_STATE_HOME="$FRESH_TMPDIR/.local/state"
+    local FRESH_XDG_CONFIG_HOME="$FRESH_TMPDIR/.config" 
+    local FRESH_XDG_RUNTIME_DIR="$FRESH_TMPDIR/.runtime"
+    
+    # Run logs command with completely clean environment
+    run env XDG_STATE_HOME="$FRESH_XDG_STATE_HOME" \
+            XDG_CONFIG_HOME="$FRESH_XDG_CONFIG_HOME" \
+            XDG_RUNTIME_DIR="$FRESH_XDG_RUNTIME_DIR" \
+            PATH="$BATS_TEST_DIRNAME/mocks:$PATH" \
+            "$VPNCTL_BIN" logs 2>/dev/null
+    
     [ "$status" -eq 0 ]
     # Debug: Show actual output
-    echo "# Logs output: $output" >&3
+    echo "# Fresh logs output: $output" >&3
     # Check for either empty log file or no log file message
     [[ "$output" =~ "Log file is empty" ]] || [[ "$output" =~ "No log file found" ]]
+    
+    # Clean up
+    rm -rf "$FRESH_TMPDIR"
 }
 
 @test "vpnctl creates XDG-compliant directories" {
-    run "$VPNCTL_BIN" list 2>/dev/null
-    [ "$status" -eq 0 ]
-    
-    # Debug: Show what directories exist
+    # Verify the test environment is properly set up
     echo "# XDG_CONFIG_HOME: $XDG_CONFIG_HOME" >&3
     echo "# XDG_STATE_HOME: $XDG_STATE_HOME" >&3
     echo "# XDG_RUNTIME_DIR: $XDG_RUNTIME_DIR" >&3
+    echo "# TEST_TMPDIR: $TEST_TMPDIR" >&3
     
-    # Check that XDG directories are created
-    [ -d "$XDG_CONFIG_HOME/vpnctl" ]
-    [ -d "$XDG_CONFIG_HOME/vpnctl/profiles" ]
-    [ -d "$XDG_STATE_HOME/vpnctl/logs" ]
-    [ -d "$XDG_RUNTIME_DIR/vpnctl" ]
+    # Ensure directories don't exist yet
+    [ ! -d "$XDG_CONFIG_HOME/vpnctl" ] || echo "# Config dir already exists" >&3
+    
+    # Run a command that should create directories
+    run "$VPNCTL_BIN" list 2>/dev/null
+    [ "$status" -eq 0 ]
+    
+    # Debug: Show what got created
+    echo "# Directories after list command:" >&3
+    find "$TEST_TMPDIR" -type d 2>/dev/null | sort >&3 || echo "# No directories found" >&3
+    
+    # Check that XDG directories are created (with better error messages)
+    [ -d "$XDG_CONFIG_HOME/vpnctl" ] || { echo "# Missing: $XDG_CONFIG_HOME/vpnctl" >&3; false; }
+    [ -d "$XDG_CONFIG_HOME/vpnctl/profiles" ] || { echo "# Missing: $XDG_CONFIG_HOME/vpnctl/profiles" >&3; false; }
+    [ -d "$XDG_STATE_HOME/vpnctl/logs" ] || { echo "# Missing: $XDG_STATE_HOME/vpnctl/logs" >&3; false; }
+    [ -d "$XDG_RUNTIME_DIR/vpnctl" ] || { echo "# Missing: $XDG_RUNTIME_DIR/vpnctl" >&3; false; }
 }
 
 @test "vpnctl status command executes" {

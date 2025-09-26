@@ -5,13 +5,13 @@ default:
 # Install user-level
 install-user:
     mkdir -p ~/.local/bin ~/.config/vpnctl/profiles
-    ln -sf {{pwd}}/bin/vpnctl ~/.local/bin/vpnctl
+    ln -sf {{justfile_directory()}}/bin/vpnctl ~/.local/bin/vpnctl
     chmod +x ~/.local/bin/vpnctl
 
 # Install system-wide
 install-system:
     sudo mkdir -p /usr/local/bin /etc/vpnctl/profiles
-    sudo ln -sf {{pwd}}/bin/vpnctl /usr/local/bin/vpnctl
+    sudo ln -sf {{justfile_directory()}}/bin/vpnctl /usr/local/bin/vpnctl
     sudo chmod +x /usr/local/bin/vpnctl
 
 # Lint shell scripts
@@ -49,13 +49,13 @@ build-containers:
 
 # Test in specific distributions
 test-container-arch:
-    podman run --rm -v {{pwd}}:/vpnctl -w /vpnctl vpnctl:arch test
+    podman run --rm -v {{justfile_directory()}}:/vpnctl -w /vpnctl vpnctl:arch test
 
 test-container-ubuntu:
-    podman run --rm -v {{pwd}}:/vpnctl -w /vpnctl vpnctl:ubuntu test
+    podman run --rm -v {{justfile_directory()}}:/vpnctl -w /vpnctl vpnctl:ubuntu test
 
 test-container-fedora:
-    podman run --rm -v {{pwd}}:/vpnctl -w /vpnctl vpnctl:fedora test
+    podman run --rm -v {{justfile_directory()}}:/vpnctl -w /vpnctl vpnctl:fedora test
 
 # Test across all distributions
 test-containers:
@@ -65,13 +65,13 @@ test-containers:
 
 # Development shell for specific distribution
 shell-container-arch:
-    podman run --rm -it -v {{pwd}}:/vpnctl -w /vpnctl vpnctl:arch sh
+    podman run --rm -it -v {{justfile_directory()}}:/vpnctl -w /vpnctl vpnctl:arch sh
 
 shell-container-ubuntu:
-    podman run --rm -it -v {{pwd}}:/vpnctl -w /vpnctl vpnctl:ubuntu bash
+    podman run --rm -it -v {{justfile_directory()}}:/vpnctl -w /vpnctl vpnctl:ubuntu bash
 
 shell-container-fedora:
-    podman run --rm -it -v {{pwd}}:/vpnctl -w /vpnctl vpnctl:fedora bash
+    podman run --rm -it -v {{justfile_directory()}}:/vpnctl -w /vpnctl vpnctl:fedora bash
 
 # Fallback: Call Makefile targets if needed
 make-install-user:

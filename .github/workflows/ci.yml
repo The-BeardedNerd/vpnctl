@@ -91,12 +91,12 @@ jobs:
           
       - name: Run tests (${{ matrix.distribution }})
         run: |
-          # Run tests inside the container
+          # Run tests inside the container using just command
           podman run --rm \
             -v $(pwd):/vpnctl:Z \
             -w /vpnctl \
             vpnctl:${{ matrix.distribution }} \
-            bats tests/
+            test
             
       - name: Test installation (${{ matrix.distribution }})
         run: |
@@ -104,8 +104,9 @@ jobs:
           podman run --rm \
             -v $(pwd):/vpnctl:Z \
             -w /vpnctl \
+            --entrypoint bash \
             vpnctl:${{ matrix.distribution }} \
-            bash -c "
+            -c "
               # Test user installation
               ./scripts/install.sh
               
@@ -126,8 +127,8 @@ jobs:
         
       - name: Check for secrets
         run: |
-          # Simple check for common secret patterns
-          if grep -r -i "password\|secret\|key\|token" --include="*.sh" --include="*.yml" --include="*.md" . | grep -v "# Example\|TODO\|placeholder"; then
+          # Check for actual secrets (not documentation references)
+          if grep -r -E "(password|secret|token)\s*=\s*['\"][^'\"]+['\"]" --include="*.sh" --include="*.yml" . | grep -v "# Example\|TODO\|placeholder\|template"; then
             echo "❌ Potential secrets found in code!"
             exit 1
           else

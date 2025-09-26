@@ -1,0 +1,32 @@
+# Fedora-based container for testing compatibility
+FROM fedora:39
+
+# Update package lists
+RUN dnf update -y
+
+# Install runtime dependencies
+RUN dnf install -y \
+  openvpn \
+  wireguard-tools \
+  iproute \
+  bash \
+  dialog \
+  sudo \
+  systemd-resolved
+
+# Install build/test dependencies
+RUN dnf install -y \
+  bats \
+  ShellCheck \
+  git \
+  make \
+  just \
+  && mkdir -p /vpnctl
+
+# Copy project files
+WORKDIR /vpnctl
+COPY . .
+
+# Set up entrypoint
+ENTRYPOINT ["just"]
+CMD ["--list"]

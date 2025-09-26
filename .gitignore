@@ -1,0 +1,88 @@
+# VPNCTL - VPN Manager for Linux
+# .gitignore
+
+# Build artifacts
+*.tar.gz
+*.zip
+dist/
+build/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
+tmp/
+
+# Test results
+test-results/
+coverage/
+*.coverage
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS generated files
+.directory
+*.orig
+
+# Shell script artifacts
+*.pid
+*.lock
+
+# Container/Docker artifacts
+.dockerignore
+
+# Personal configuration (never commit secrets!)
+config.ini
+*.key
+*.pem
+*.p12
+*.pfx
+credentials/
+secrets/
+
+# VPN profiles (may contain sensitive data)
+profiles/*.ovpn
+profiles/*.conf
+!profiles/example.*
+
+# Runtime directories
+run/
+var/
+
+# Package manager files
+node_modules/
+.npm/
+.yarn/
+
+# Python (if used for TUI)
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+venv/
+.venv/
+
+# Rust (if using just)
+target/
+Cargo.lock
+
+# Local development overrides
+.env
+.env.local
+local.mk
+local.just
+
+# Backup files
+*.bak
+*.backupdocs/WARP.md

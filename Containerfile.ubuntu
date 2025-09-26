@@ -1,0 +1,38 @@
+# Ubuntu-based container for testing compatibility
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Update package lists
+RUN apt-get update
+
+# Install runtime dependencies
+RUN apt-get install -y \
+  openvpn \
+  wireguard-tools \
+  iproute2 \
+  bash \
+  dialog \
+  sudo \
+  systemd-resolved
+
+# Install build/test dependencies
+RUN apt-get install -y \
+  bats \
+  shellcheck \
+  git \
+  make \
+  curl \
+  && mkdir -p /vpnctl
+
+# Install just (not in Ubuntu repos)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+
+# Copy project files
+WORKDIR /vpnctl
+COPY . .
+
+# Set up entrypoint
+ENTRYPOINT ["just"]
+CMD ["--list"]

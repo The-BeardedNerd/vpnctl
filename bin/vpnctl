@@ -18,11 +18,17 @@ readonly XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 # Fallback for containers where /run/user may not exist
 if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
     readonly XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR"
-elif [[ -d "/run/user/$(id -u)" ]] && [[ -w "/run/user/$(id -u)" ]]; then
-    readonly XDG_RUNTIME_DIR="/run/user/$(id -u)"
 else
-    # Fallback to a writable temp directory
-    readonly XDG_RUNTIME_DIR="${TMPDIR:-/tmp}/vpnctl-$(id -u)"
+    # Check if standard runtime dir exists and is writable
+    local runtime_candidate
+    runtime_candidate="/run/user/$(id -u)"
+    if [[ -d "$runtime_candidate" ]] && [[ -w "$runtime_candidate" ]]; then
+        readonly XDG_RUNTIME_DIR="$runtime_candidate"
+    else
+        # Fallback to a writable temp directory
+        runtime_candidate="${TMPDIR:-/tmp}/vpnctl-$(id -u)"
+        readonly XDG_RUNTIME_DIR="$runtime_candidate"
+    fi
 fi
 
 # Determine installation mode (user vs system)

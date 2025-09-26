@@ -239,8 +239,10 @@ cmd_fix_dns() {
 
 # Show logs command
 cmd_logs() {
-    if [[ -f "$LOG_FILE" ]]; then
+    if [[ -f "$LOG_FILE" ]] && [[ -s "$LOG_FILE" ]]; then
         tail -n 50 "$LOG_FILE"
+    elif [[ -f "$LOG_FILE" ]]; then
+        echo "Log file is empty: $LOG_FILE"
     else
         echo "No log file found: $LOG_FILE"
     fi
@@ -250,11 +252,17 @@ cmd_logs() {
 main() {
     # Initialize
     init_dirs
-    check_dependencies
     
     # Parse command
     local command="${1:-help}"
     shift || true
+    
+    # Only check dependencies for commands that need them
+    case "$command" in
+        "connect"|"disconnect")
+            check_dependencies
+            ;;
+    esac
     
     case "$command" in
         "connect")

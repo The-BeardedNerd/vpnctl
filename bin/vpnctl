@@ -1,0 +1,296 @@
+#!/usr/bin/env bash
+
+# VPNCTL - VPN Manager for Linux
+# XDG-compliant VPN connection manager with hybrid user/system support
+# 
+# Copyright (c) 2025 VPNCTL Project
+# Licensed under the MIT License
+
+set -euo pipefail
+
+# Version and metadata
+readonly VPNCTL_VERSION="0.1.0-dev"
+readonly VPNCTL_NAME="vpnctl"
+
+# XDG Base Directory Specification
+readonly XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+readonly XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+readonly XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+# Determine installation mode (user vs system)
+if [[ $EUID -eq 0 ]]; then
+    # System-wide installation
+    readonly CONFIG_DIR="/etc/vpnctl"
+    readonly PROFILES_DIR="/etc/vpnctl/profiles"
+    readonly LOG_DIR="/var/log/vpnctl"
+    readonly RUNTIME_DIR="/run/vpnctl"
+else
+    # User-level installation
+    readonly CONFIG_DIR="$XDG_CONFIG_HOME/vpnctl"
+    readonly PROFILES_DIR="$XDG_CONFIG_HOME/vpnctl/profiles"
+    readonly LOG_DIR="$XDG_STATE_HOME/vpnctl/logs"
+    readonly RUNTIME_DIR="$XDG_RUNTIME_DIR/vpnctl"
+fi
+
+# Configuration file paths
+readonly CONFIG_FILE="$CONFIG_DIR/config.ini"
+readonly PID_FILE="$RUNTIME_DIR/vpnctl.pid"
+readonly LOG_FILE="$LOG_DIR/vpnctl.log"
+
+# Debug mode
+readonly DEBUG="${VPNCTL_DEBUG:-0}"
+
+# Colors for output
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly NC='\033[0m' # No Color
+
+# Logging function
+log() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Ensure log directory exists
+    [[ -d "$(dirname "$LOG_FILE")" ]] || mkdir -p "$(dirname "$LOG_FILE")"
+    
+    # Write to log file
+    echo "[$timestamp] [$level] $message" >> "$LOG_FILE"
+    
+    # Output to stderr with colors
+    case "$level" in
+        "ERROR")
+            echo -e "${RED}[ERROR]${NC} $message" >&2
+            ;;
+        "WARN")
+            echo -e "${YELLOW}[WARN]${NC} $message" >&2
+            ;;
+        "INFO")
+            echo -e "${BLUE}[INFO]${NC} $message" >&2
+            ;;
+        "SUCCESS")
+            echo -e "${GREEN}[SUCCESS]${NC} $message" >&2
+            ;;
+        "DEBUG")
+            [[ $DEBUG -eq 1 ]] && echo -e "${BLUE}[DEBUG]${NC} $message" >&2
+            ;;
+    esac
+}
+
+# Error handling
+error_exit() {
+    log "ERROR" "$1"
+    exit 1
+}
+
+# Check dependencies
+check_dependencies() {
+    local missing_deps=()
+    
+    # Check for required commands
+    for cmd in openvpn wg-quick ip; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing_deps+=("$cmd")
+        fi
+    done
+    
+    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+        error_exit "Missing required dependencies: ${missing_deps[*]}"
+    fi
+}
+
+# Initialize directories
+init_dirs() {
+    local dirs=("$CONFIG_DIR" "$PROFILES_DIR" "$LOG_DIR" "$RUNTIME_DIR")
+    
+    for dir in "${dirs[@]}"; do
+        if [[ ! -d "$dir" ]]; then
+            log "INFO" "Creating directory: $dir"
+            mkdir -p "$dir" || error_exit "Failed to create directory: $dir"
+        fi
+    done
+}
+
+# Show usage information
+show_usage() {
+    cat << EOF
+VPNCTL - VPN Manager for Linux v$VPNCTL_VERSION
+
+USAGE:
+    $VPNCTL_NAME <command> [options]
+
+COMMANDS:
+    connect <profile>    Connect to VPN profile
+    disconnect          Disconnect current VPN
+    status              Show connection status
+    list                List available profiles
+    add <file>          Add VPN profile
+    remove <profile>    Remove VPN profile
+    fix-dns             Reset DNS configuration
+    logs                Show recent logs
+    version             Show version information
+    help                Show this help message
+
+EXAMPLES:
+    $VPNCTL_NAME connect my-server
+    $VPNCTL_NAME status
+    $VPNCTL_NAME add ~/Downloads/server.ovpn
+    $VPNCTL_NAME fix-dns
+
+CONFIGURATION:
+    Config: $CONFIG_FILE
+    Profiles: $PROFILES_DIR
+    Logs: $LOG_FILE
+
+For more information, see the documentation.
+EOF
+}
+
+# Show version information
+show_version() {
+    echo "$VPNCTL_NAME version $VPNCTL_VERSION"
+    echo "Copyright (c) 2025 VPNCTL Project"
+    echo "Licensed under the MIT License"
+}
+
+# Connect command (stub)
+cmd_connect() {
+    local profile="${1:-}"
+    
+    if [[ -z "$profile" ]]; then
+        error_exit "Profile name required. Use: $VPNCTL_NAME connect <profile>"
+    fi
+    
+    local profile_file="$PROFILES_DIR/$profile.ovpn"
+    
+    if [[ ! -f "$profile_file" ]]; then
+        error_exit "Profile not found: $profile"
+    fi
+    
+    log "INFO" "Connecting to profile: $profile"
+    echo "TODO: Implement VPN connection logic"
+}
+
+# Disconnect command (stub)
+cmd_disconnect() {
+    log "INFO" "Disconnecting VPN"
+    echo "TODO: Implement VPN disconnection logic"
+}
+
+# Status command (stub)
+cmd_status() {
+    log "INFO" "Checking VPN status"
+    echo "TODO: Implement status check logic"
+}
+
+# List profiles command
+cmd_list() {
+    log "INFO" "Listing available profiles"
+    
+    if [[ ! -d "$PROFILES_DIR" ]]; then
+        echo "No profiles directory found: $PROFILES_DIR"
+        return 1
+    fi
+    
+    local profiles=("$PROFILES_DIR"/*.{ovpn,conf})
+    local found=0
+    
+    for profile in "${profiles[@]}"; do
+        if [[ -f "$profile" ]]; then
+            local basename=$(basename "$profile")
+            local name="${basename%.*}"
+            echo "  $name"
+            found=1
+        fi
+    done
+    
+    if [[ $found -eq 0 ]]; then
+        echo "No VPN profiles found in $PROFILES_DIR"
+        echo "Add profiles with: $VPNCTL_NAME add <file>"
+    fi
+}
+
+# Add profile command (stub)
+cmd_add() {
+    local file="${1:-}"
+    
+    if [[ -z "$file" ]]; then
+        error_exit "Profile file required. Use: $VPNCTL_NAME add <file>"
+    fi
+    
+    if [[ ! -f "$file" ]]; then
+        error_exit "Profile file not found: $file"
+    fi
+    
+    log "INFO" "Adding profile: $file"
+    echo "TODO: Implement profile addition logic"
+}
+
+# Fix DNS command (stub)
+cmd_fix_dns() {
+    log "INFO" "Resetting DNS configuration"
+    echo "TODO: Implement DNS reset logic"
+}
+
+# Show logs command
+cmd_logs() {
+    if [[ -f "$LOG_FILE" ]]; then
+        tail -n 50 "$LOG_FILE"
+    else
+        echo "No log file found: $LOG_FILE"
+    fi
+}
+
+# Main command dispatcher
+main() {
+    # Initialize
+    init_dirs
+    check_dependencies
+    
+    # Parse command
+    local command="${1:-help}"
+    shift || true
+    
+    case "$command" in
+        "connect")
+            cmd_connect "$@"
+            ;;
+        "disconnect")
+            cmd_disconnect "$@"
+            ;;
+        "status")
+            cmd_status "$@"
+            ;;
+        "list")
+            cmd_list "$@"
+            ;;
+        "add")
+            cmd_add "$@"
+            ;;
+        "remove")
+            echo "TODO: Implement remove command"
+            ;;
+        "fix-dns")
+            cmd_fix_dns "$@"
+            ;;
+        "logs")
+            cmd_logs "$@"
+            ;;
+        "version")
+            show_version
+            ;;
+        "help"|"-h"|"--help")
+            show_usage
+            ;;
+        *)
+            error_exit "Unknown command: $command. Use '$VPNCTL_NAME help' for usage."
+            ;;
+    esac
+}
+
+# Run main function if script is executed directly
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

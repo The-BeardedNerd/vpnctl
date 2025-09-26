@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Mock wg-quick command for testing
+echo "Mock WireGuard: $*"
+exit 0

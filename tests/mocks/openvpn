@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Mock openvpn command for testing
+echo "Mock OpenVPN: $*"
+exit 0

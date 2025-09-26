@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Mock ip command for testing
+echo "Mock IP: $*"
+exit 0

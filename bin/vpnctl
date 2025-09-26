@@ -55,11 +55,10 @@ log() {
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
-    # Ensure log directory exists
-    [[ -d "$(dirname "$LOG_FILE")" ]] || mkdir -p "$(dirname "$LOG_FILE")"
-    
-    # Write to log file
-    echo "[$timestamp] [$level] $message" >> "$LOG_FILE"
+    # Write to log file only if log directory exists (avoid creating during init)
+    if [[ -d "$(dirname "$LOG_FILE")" ]]; then
+        echo "[$timestamp] [$level] $message" >> "$LOG_FILE"
+    fi
     
     # Output to stderr with colors
     case "$level" in
@@ -109,8 +108,12 @@ init_dirs() {
     
     for dir in "${dirs[@]}"; do
         if [[ ! -d "$dir" ]]; then
-            log "INFO" "Creating directory: $dir"
+            # Create directory without logging to avoid circular dependency
             mkdir -p "$dir" || error_exit "Failed to create directory: $dir"
+            # Only log after directories exist
+            if [[ "$dir" != "$LOG_DIR" ]]; then
+                log "INFO" "Created directory: $dir"
+            fi
         fi
     done
 }

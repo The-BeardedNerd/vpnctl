@@ -77,14 +77,22 @@ teardown() {
 }
 
 @test "vpnctl logs shows no log file message when no logs exist" {
-    run "$VPNCTL_BIN" logs
+    run "$VPNCTL_BIN" logs 2>/dev/null
     [ "$status" -eq 0 ]
-    [[ "$output" =~ ("No log file found"|"Log file is empty") ]]
+    # Debug: Show actual output
+    echo "# Logs output: $output" >&3
+    # Check for either empty log file or no log file message
+    [[ "$output" =~ "Log file is empty" ]] || [[ "$output" =~ "No log file found" ]]
 }
 
 @test "vpnctl creates XDG-compliant directories" {
-    run "$VPNCTL_BIN" list
+    run "$VPNCTL_BIN" list 2>/dev/null
     [ "$status" -eq 0 ]
+    
+    # Debug: Show what directories exist
+    echo "# XDG_CONFIG_HOME: $XDG_CONFIG_HOME" >&3
+    echo "# XDG_STATE_HOME: $XDG_STATE_HOME" >&3
+    echo "# XDG_RUNTIME_DIR: $XDG_RUNTIME_DIR" >&3
     
     # Check that XDG directories are created
     [ -d "$XDG_CONFIG_HOME/vpnctl" ]

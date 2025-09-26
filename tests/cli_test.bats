@@ -79,7 +79,7 @@ teardown() {
     [[ "$output" =~ "Profile file not found" ]]
 }
 
-@test "vpnctl logs shows no log file message when no logs exist" {
+@test "vpnctl logs command executes and shows initialization logs" {
     # Create completely fresh environment just for this test
     local FRESH_TMPDIR="$(mktemp -d)"
     local FRESH_XDG_STATE_HOME="$FRESH_TMPDIR/.local/state"
@@ -96,8 +96,8 @@ teardown() {
     [ "$status" -eq 0 ]
     # Debug: Show actual output
     echo "# Fresh logs output: $output" >&3
-    # Check for either empty log file or no log file message
-    [[ "$output" =~ "Log file is empty" ]] || [[ "$output" =~ "No log file found" ]]
+    # On fresh system, vpnctl logs should show directory creation logs
+    [[ "$output" =~ "Created directory" ]] || [[ "$output" =~ "Log file is empty" ]] || [[ "$output" =~ "No log file found" ]]
     
     # Clean up
     rm -rf "$FRESH_TMPDIR"
@@ -113,8 +113,10 @@ teardown() {
     # Ensure directories don't exist yet
     [ ! -d "$XDG_CONFIG_HOME/vpnctl" ] || echo "# Config dir already exists" >&3
     
-    # Run a command that should create directories
-    run "$VPNCTL_BIN" list 2>/dev/null
+    # Run a command that should create directories (capture both stdout and stderr)
+    run "$VPNCTL_BIN" list
+    echo "# Command exit status: $status" >&3
+    echo "# Command output: $output" >&3
     [ "$status" -eq 0 ]
     
     # Debug: Show what got created

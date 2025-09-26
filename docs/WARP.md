@@ -1,8 +1,9 @@
 # WARP.md - AI/Developer Reference Guide for VPNCTL
 
-**Generated**: 2025-09-26T06:43:08Z  
+**Generated**: 2025-09-26T11:40:00Z  
 **Project**: VPNCTL - VPN Manager for Linux  
-**Location**: `/home/devphreek/dev/vpnctl/`
+**Location**: `/home/devphreek/dev/vpnctl/`  
+**Status**: Infrastructure Complete - Ready for VPN Implementation
 
 ---
 
@@ -10,12 +11,15 @@
 
 **VPNCTL** is a CLI/TUI tool for managing VPN connections on Linux with XDG compliance and hybrid user/system access. It supports ProtonVPN, OpenVPN, and WireGuard configurations with privilege-aware operations.
 
-### Key Features
-- ✅ Hybrid Install: Works for single users or system-wide
-- ✅ XDG Compliant: Configs/logs in standard locations
-- ✅ Privilege-Aware: Uses `sudo` only when necessary
-- ✅ Multi-VPN Support: ProtonVPN, OpenVPN, WireGuard
-- ✅ Interactive TUI: Optional dialog-based interface
+### Key Features (Current Implementation Status)
+- ✅ **Hybrid Install**: Works for single users or system-wide  
+- ✅ **XDG Compliant**: Configs/logs in standard locations
+- ✅ **Privilege-Aware**: Uses `sudo` only when necessary
+- ✅ **Professional CI/CD**: Multi-distribution testing & validation
+- ✅ **Comprehensive Testing**: 15 BATS tests across 3 distributions
+- ✅ **Installation Scripts**: Automated user/system installation
+- 🚧 **VPN Functionality**: Core VPN features (in development)
+- 🚧 **Interactive TUI**: Optional dialog-based interface (planned)
 
 ---
 
@@ -23,30 +27,104 @@
 
 ```
 vpnctl/
-├── docs/                    # Documentation
-│   ├── development/         # Development-specific docs
+├── .github/                # ✅ GitHub automation
+│   ├── workflows/
+│   │   └── ci.yml          # Multi-distribution CI/CD pipeline
+│   ├── CODEOWNERS          # Automated review assignments
+│   └── pull_request_template.md
+├── docs/                   # ✅ Documentation
+│   ├── development/        # Development-specific docs
 │   │   ├── PROJECT-STRUCTURE.md
 │   │   ├── ARCHITECTURE.md
 │   │   ├── PLAN.md
 │   │   └── CONVENTIONAL-COMMITS.md
-│   ├── WARP.md             # This file (AI/Dev guide)
-│   └── README.md           # User-facing documentation
-├── bin/                    # [PLANNED] Executables
-│   ├── vpnctl              # Main CLI script
-│   └── vpnctl-tui          # Optional TUI wrapper
-├── config/                 # [PLANNED] Default configs
-│   ├── config.ini          # Default settings
-│   └── profiles/           # Example VPN profiles
-├── lib/                    # [PLANNED] Shared libraries
-│   └── helpers.sh          # Reusable functions
-├── src/                    # [PLANNED] Source code
-├── tests/                  # [PLANNED] Test scripts (BATS)
-├── scripts/                # [PLANNED] Utility scripts
-├── Containerfile           # Container definition (Alpine-based)
-├── justfile               # Task automation (recommended)
-├── Makefile               # Task automation (fallback)
-└── [.gitignore, LICENSE]   # [PLANNED] Standard project files
+│   └── WARP.md            # This file (AI/Dev guide)
+├── bin/                    # ✅ Executables
+│   └── vpnctl             # Main CLI script (functional)
+├── config/                 # ✅ Default configs
+│   ├── config.ini         # Default settings
+│   ├── config.ini.template # Template file
+│   └── profiles/          # Example VPN profiles
+│       └── example.ovpn
+├── tests/                  # ✅ Test scripts (BATS)
+│   ├── cli_test.bats      # 15 comprehensive tests
+│   └── mocks/             # Mock dependencies
+├── scripts/                # ✅ Utility scripts
+│   └── install.sh         # User/system installation
+├── Containerfile           # ✅ Arch Linux container
+├── Containerfile.ubuntu    # ✅ Ubuntu container
+├── Containerfile.fedora    # ✅ Fedora container
+├── justfile               # ✅ Task automation (primary)
+├── Makefile               # ✅ Task automation (fallback)
+├── README.md              # ✅ User documentation
+├── CONTRIBUTING.md        # ✅ Contribution guidelines
+├── LICENSE                # ✅ MIT License
+└── .gitignore             # ✅ Git ignore patterns
 ```
+
+---
+
+## 🔄 CI/CD Pipeline
+
+### Multi-Distribution Testing
+The project includes a comprehensive GitHub Actions pipeline that tests across multiple Linux distributions:
+
+**Pipeline Jobs:**
+- 🔍 **Lint & Validate** - ShellCheck linting and project structure validation
+- 🔒 **Security & Quality** - Secret scanning and security checks  
+- 🧪 **Test Suite** - 15 BATS tests across 3 distributions:
+  - **Arch Linux** (primary development environment)
+  - **Ubuntu 22.04** (widespread compatibility)
+  - **Fedora** (RHEL ecosystem compatibility)
+- 📚 **Documentation** - Documentation completeness checks
+- 📦 **Installation Testing** - Validates install script in all environments
+
+### Container-Based Testing
+Each distribution runs in isolated Podman containers:
+
+```bash
+# Arch Linux (primary)
+podman build -t vpnctl:arch -f Containerfile .
+
+# Ubuntu 
+podman build -t vpnctl:ubuntu -f Containerfile.ubuntu .
+
+# Fedora
+podman build -t vpnctl:fedora -f Containerfile.fedora .
+```
+
+### Test Coverage
+**15 Comprehensive Tests:**
+1. Help and version commands
+2. VPN profile management
+3. Error handling and validation
+4. XDG-compliant directory creation
+5. Installation script verification
+6. Command-line argument processing
+7. Configuration file handling
+8. Root vs user privilege detection
+9. Logging functionality
+10. Debug mode operation
+
+### Branch Protection
+**Current Settings (Development-Friendly):**
+- ✅ All CI tests must pass before merge
+- ✅ No force pushes allowed
+- ✅ No accidental branch deletion
+- ❌ Review requirements disabled (solo development)
+- ❌ Linear history not enforced (allows merge commits)
+
+**Status Checks Required:**
+- `CI/CD Pipeline/🔍 Lint & Validate`
+- `CI/CD Pipeline/🔒 Security & Quality`
+- `CI/CD Pipeline/🧪 Test on arch`
+- `CI/CD Pipeline/🧪 Test on ubuntu`
+- `CI/CD Pipeline/🧪 Test on fedora`
+
+### Workflow Triggers
+- **Push to `develop`** - Full CI pipeline
+- **Pull Requests** - Full CI + documentation checks
+- **Manual dispatch** - Available for testing
 
 ---
 
@@ -315,31 +393,42 @@ gpg --encrypt --recipient your@email.com config.ini
 
 ---
 
-## 📋 Development Checklist
+## 📍 Development Checklist
 
-### Phase 1: Core CLI
-- [ ] Initialize Git repository
-- [ ] Create project structure
-- [ ] Implement `vpnctl connect`
-- [ ] Implement `vpnctl fix-dns`
-- [ ] Implement `vpnctl status`
-- [ ] Add XDG-compliant logging
+### 🏁 Phase 1: Infrastructure (COMPLETED ✅)
+- [x] **Initialize Git repository**
+- [x] **Create project structure**
+- [x] **Professional CI/CD pipeline** (GitHub Actions)
+- [x] **Multi-distribution testing** (Arch, Ubuntu, Fedora)
+- [x] **BATS test suite** (15 comprehensive tests)
+- [x] **Installation scripts** (user/system hybrid)
+- [x] **XDG-compliant architecture**
+- [x] **Container-based development**
+- [x] **Documentation framework**
+- [x] **Branch protection & code quality**
 
-### Phase 2: TUI & User Experience
-- [ ] Background monitor service
-- [ ] Multi-VPN support
-- [ ] Firewall integration
+### 🚧 Phase 2: Core VPN Functionality (IN PROGRESS)
+- [ ] **Implement `vpnctl connect`** (OpenVPN support)
+- [ ] **Implement `vpnctl disconnect`** 
+- [ ] **Implement `vpnctl status`** 
+- [ ] **Implement `vpnctl fix-dns`**
+- [ ] **Profile management** (`add`, `remove`, `list`)
+- [ ] **XDG-compliant logging**
+- [ ] **Error handling and validation**
 
-### Phase 3: Advanced Features
-- [ ] TUI wrapper with dialog
-- [ ] Error handling and retry logic
-- [ ] GPG encryption support
+### 🔮 Phase 3: Advanced Features (PLANNED)
+- [ ] **WireGuard support**
+- [ ] **Background monitor service**
+- [ ] **TUI wrapper with dialog**
+- [ ] **Firewall integration**
+- [ ] **GPG encryption support**
 
-### Phase 4: Testing & Release
-- [ ] BATS test suite
-- [ ] Multi-distro testing
-- [ ] Package for AUR/DEB/RPM
-- [ ] Documentation completion
+### 🚀 Phase 4: Release & Distribution (PLANNED)
+- [ ] **Package for AUR**
+- [ ] **Package for DEB/RPM**
+- [ ] **User documentation completion**
+- [ ] **Performance optimization**
+- [ ] **Beta testing program**
 
 ---
 
@@ -377,5 +466,7 @@ git tag -a v1.0.0        # Tag release
 
 ---
 
-**Last Updated**: 2025-09-26T06:43:08Z  
+**Last Updated**: 2025-09-26T11:40:00Z  
+**Status**: Infrastructure Phase Complete - CI/CD Pipeline Operational  
+**Next Phase**: Core VPN Functionality Implementation  
 **Maintainer**: AI Assistant (claude 4 sonnet)

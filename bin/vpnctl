@@ -34,7 +34,8 @@ fi
 
 # Configuration file paths
 readonly CONFIG_FILE="$CONFIG_DIR/config.ini"
-readonly PID_FILE="$RUNTIME_DIR/vpnctl.pid"
+# PID file for future process management
+# readonly PID_FILE="$RUNTIME_DIR/vpnctl.pid"  # TODO: Implement process tracking
 readonly LOG_FILE="$LOG_DIR/vpnctl.log"
 
 # Debug mode
@@ -51,7 +52,8 @@ readonly NC='\033[0m' # No Color
 log() {
     local level="$1"
     local message="$2"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
     # Ensure log directory exists
     [[ -d "$(dirname "$LOG_FILE")" ]] || mkdir -p "$(dirname "$LOG_FILE")"
@@ -199,7 +201,8 @@ cmd_list() {
     
     for profile in "${profiles[@]}"; do
         if [[ -f "$profile" ]]; then
-            local basename=$(basename "$profile")
+            local basename
+            basename=$(basename "$profile")
             local name="${basename%.*}"
             echo "  $name"
             found=1

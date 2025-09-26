@@ -20,14 +20,13 @@ if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
     readonly XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR"
 else
     # Check if standard runtime dir exists and is writable
-    local runtime_candidate
-    runtime_candidate="/run/user/$(id -u)"
-    if [[ -d "$runtime_candidate" ]] && [[ -w "$runtime_candidate" ]]; then
-        readonly XDG_RUNTIME_DIR="$runtime_candidate"
+    _runtime_candidate="/run/user/$(id -u)"
+    if [[ -d "$_runtime_candidate" ]] && [[ -w "$_runtime_candidate" ]]; then
+        readonly XDG_RUNTIME_DIR="$_runtime_candidate"
     else
         # Fallback to a writable temp directory
-        runtime_candidate="${TMPDIR:-/tmp}/vpnctl-$(id -u)"
-        readonly XDG_RUNTIME_DIR="$runtime_candidate"
+        _runtime_candidate="${TMPDIR:-/tmp}/vpnctl-$(id -u)"
+        readonly XDG_RUNTIME_DIR="$_runtime_candidate"
     fi
 fi
 

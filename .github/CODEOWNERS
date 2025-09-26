@@ -1,0 +1,16 @@
+# Global ownership - The-BeardedNerd owns everything by default
+* @The-BeardedNerd
+
+# Core functionality requires extra scrutiny
+bin/vpnctl @The-BeardedNerd
+scripts/ @The-BeardedNerd
+
+# Infrastructure and CI/CD
+.github/ @The-BeardedNerd
+Containerfile* @The-BeardedNerd
+justfile @The-BeardedNerd
+Makefile @The-BeardedNerd
+
+# Security-sensitive areas
+.gitignore @The-BeardedNerd
+config/ @The-BeardedNerd

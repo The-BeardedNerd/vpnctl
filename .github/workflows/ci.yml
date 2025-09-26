@@ -100,19 +100,52 @@ jobs:
             
       - name: Test installation (${{ matrix.distribution }})
         run: |
-          # Test that installation script works
+          # Test that installation script works (containers run as root = system install)
           podman run --rm \
             -v $(pwd):/vpnctl:Z \
             -w /vpnctl \
             --entrypoint bash \
             vpnctl:${{ matrix.distribution }} \
             -c "
-              # Test user installation
+              echo '=== Testing Installation Script ==='
+              
+              # Run installation script
               ./scripts/install.sh
               
-              # Verify installation worked
-              ~/.local/bin/vpnctl version
-              ~/.local/bin/vpnctl help
+              echo '=== Verifying Installation ==='
+              
+              # In containers we run as root, so binary goes to /usr/local/bin
+              if [[ \$EUID -eq 0 ]]; then
+                VPNCTL_PATH='/usr/local/bin/vpnctl'
+                echo 'Testing system installation (running as root)'
+              else
+                VPNCTL_PATH='~/.local/bin/vpnctl'
+                echo 'Testing user installation'
+              fi
+              
+              # Verify binary exists and is executable
+              test -x \"\$VPNCTL_PATH\"
+              echo \"✅ Binary found at \$VPNCTL_PATH\"
+              
+              # Test basic commands
+              \"\$VPNCTL_PATH\" version
+              \"\$VPNCTL_PATH\" help >/dev/null
+              echo '✅ Basic commands work'
+              
+              # Verify config directory structure
+              if [[ \$EUID -eq 0 ]]; then
+                test -d '/etc/vpnctl'
+                test -d '/etc/vpnctl/profiles'
+                test -f '/etc/vpnctl/config.ini'
+                echo '✅ System config directories created'
+              else
+                test -d \"\$HOME/.config/vpnctl\"
+                test -d \"\$HOME/.config/vpnctl/profiles\"
+                test -f \"\$HOME/.config/vpnctl/config.ini\"
+                echo '✅ User config directories created'
+              fi
+              
+              echo '🎉 Installation test passed!'
             "
 
   # Job 3: Security and quality checks

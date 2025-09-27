@@ -103,7 +103,6 @@ error_exit() {
 # Check dependencies
 check_dependencies() {
     local required_cmd="${1:-}"
-    local missing_deps=()
 
     # Check for specific command if provided
     if [[ -n "$required_cmd" ]]; then
@@ -112,14 +111,8 @@ check_dependencies() {
         fi
     else
         # Check for basic commands only
-        for cmd in ip; do
-            if ! command -v "$cmd" &> /dev/null; then
-                missing_deps+=("$cmd")
-            fi
-        done
-
-        if [[ ${#missing_deps[@]} -gt 0 ]]; then
-            error_exit "Missing required dependencies: ${missing_deps[*]}"
+        if ! command -v "ip" &> /dev/null; then
+            error_exit "Missing required dependency: ip"
         fi
     fi
 }

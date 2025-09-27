@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Mock kill command for testing
+# Simulates killing processes without actually doing it
+
+signal=""
+pid=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -[0-9]*)
+            signal="$1"
+            shift
+            ;;
+        -TERM|-KILL|-HUP|-INT|-QUIT)
+            signal="$1"
+            shift
+            ;;
+        -0)
+            # Process existence check - always return success for testing
+            pid="$2"
+            shift 2
+            echo "Mock kill: checking if PID $pid exists (always returns success)"
+            exit 0
+            ;;
+        [0-9]*)
+            pid="$1"
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# Simulate successful kill
+echo "Mock kill: sending signal ${signal:--TERM} to PID $pid"
+exit 0

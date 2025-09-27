@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Mock sudo command for testing
+# Simply executes the command without privilege escalation
+
+# Pass through all arguments to the actual command
+exec "$@"

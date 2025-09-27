@@ -151,7 +151,7 @@ teardown() {
 @test "vpnctl disconnect command executes" {
     run "$VPNCTL_BIN" disconnect
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "TODO: Implement VPN disconnection logic" ]]
+    [[ "$output" =~ "No active VPN connection found" ]]
 }
 
 @test "vpnctl fix-dns command executes" {
@@ -196,7 +196,7 @@ EOF
 
     run "$VPNCTL_BIN" connect test
     [ "$status" -eq 1 ]  # Will fail due to fake server, but should detect type
-    [[ "$output" =~ "openvpn" ]] || [[ "$output" =~ "Missing required dependency: openvpn" ]]
+    [[ "$output" =~ "openvpn" ]] || [[ "$output" =~ "Missing required dependency: openvpn" ]] || [[ "$output" =~ "Connecting to profile: test (openvpn)" ]]
 }
 
 @test "vpnctl connect detects WireGuard profile type" {
@@ -214,7 +214,7 @@ EOF
 
     run "$VPNCTL_BIN" connect wgtest
     [ "$status" -eq 1 ]  # Will fail due to missing wg-quick or fake server
-    [[ "$output" =~ "wireguard" ]] || [[ "$output" =~ "Missing required dependency: wg-quick" ]]
+    [[ "$output" =~ "wireguard" ]] || [[ "$output" =~ "Missing required dependency: wg-quick" ]] || [[ "$output" =~ "Connecting to profile: wgtest (wireguard)" ]]
 }
 
 @test "vpnctl connect creates runtime files structure" {
@@ -225,8 +225,12 @@ EOF
     # Run connect (will fail but should create directories)
     run "$VPNCTL_BIN" connect test
 
-    # Check that runtime directory exists
-    [ -d "$XDG_RUNTIME_DIR/vpnctl" ]
+    # Check that runtime directory exists (may be system or user depending on EUID)
+    if [[ $EUID -eq 0 ]]; then
+        [ -d "/run/vpnctl" ]
+    else
+        [ -d "$XDG_RUNTIME_DIR/vpnctl" ]
+    fi
 }
 
 @test "vpnctl connect prefers OpenVPN over WireGuard when both exist" {
@@ -237,7 +241,7 @@ EOF
 
     run "$VPNCTL_BIN" connect dual
     [ "$status" -eq 1 ]  # Will fail but should prefer OpenVPN
-    [[ "$output" =~ "openvpn" ]] || [[ "$output" =~ "Missing required dependency: openvpn" ]]
+    [[ "$output" =~ "openvpn" ]] || [[ "$output" =~ "Missing required dependency: openvpn" ]] || [[ "$output" =~ "Connecting to profile: dual (openvpn)" ]]
     [[ ! "$output" =~ "wireguard" ]]
 }
 
@@ -248,53 +252,92 @@ EOF
 }
 
 @test "vpnctl disconnect cleans up stale PID file" {
-    # Create a stale PID file with invalid PID
-    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
-    echo "99999" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+    # Create a stale PID file with invalid PID in appropriate location
+    if [[ $EUID -eq 0 ]]; then
+        mkdir -p "/run/vpnctl"
+        echo "99999" > "/run/vpnctl/vpnctl.pid"
+    else
+        mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+        echo "99999" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+    fi
 
     run "$VPNCTL_BIN" disconnect
     [ "$status" -eq 0 ]
     [[ "$output" =~ "VPN process not running" ]] || [[ "$output" =~ "cleaning up stale files" ]]
 
     # PID file should be cleaned up
-    [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid" ]
+    if [[ $EUID -eq 0 ]]; then
+        [ ! -f "/run/vpnctl/vpnctl.pid" ]
+    else
+        [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid" ]
+    fi
 }
 
 @test "vpnctl disconnect cleans up empty PID file" {
-    # Create an empty PID file
-    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
-    touch "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+    # Create an empty PID file in appropriate location
+    if [[ $EUID -eq 0 ]]; then
+        mkdir -p "/run/vpnctl"
+        touch "/run/vpnctl/vpnctl.pid"
+    else
+        mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+        touch "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+    fi
 
     run "$VPNCTL_BIN" disconnect
     [ "$status" -eq 0 ]
     [[ "$output" =~ "Invalid PID file" ]] || [[ "$output" =~ "cleaning up stale files" ]]
 
     # PID file should be cleaned up
-    [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid" ]
+    if [[ $EUID -eq 0 ]]; then
+        [ ! -f "/run/vpnctl/vpnctl.pid" ]
+    else
+        [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid" ]
+    fi
 }
 
 @test "vpnctl disconnect removes status file during cleanup" {
-    # Create stale connection files
-    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
-    echo "99999" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
-    cat > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" << EOF
+    # Create stale connection files in appropriate location
+    if [[ $EUID -eq 0 ]]; then
+        mkdir -p "/run/vpnctl"
+        echo "99999" > "/run/vpnctl/vpnctl.pid"
+        cat > "/run/vpnctl/vpnctl.status" << EOF
 profile=test
 type=openvpn
 pid=99999
 started=$(date '+%Y-%m-%d %H:%M:%S')
 EOF
+    else
+        mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+        echo "99999" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+        cat > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" << EOF
+profile=test
+type=openvpn
+pid=99999
+started=$(date '+%Y-%m-%d %H:%M:%S')
+EOF
+    fi
 
     run "$VPNCTL_BIN" disconnect
     [ "$status" -eq 0 ]
 
     # Both files should be cleaned up
-    [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid" ]
-    [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" ]
+    if [[ $EUID -eq 0 ]]; then
+        [ ! -f "/run/vpnctl/vpnctl.pid" ]
+        [ ! -f "/run/vpnctl/vpnctl.status" ]
+    else
+        [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid" ]
+        [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" ]
+    fi
 }
 
 @test "vpnctl disconnect creates runtime directory if needed" {
     # Ensure directory exists for disconnect command
     run "$VPNCTL_BIN" disconnect
     [ "$status" -eq 0 ]
-    [ -d "$XDG_RUNTIME_DIR/vpnctl" ]
+    # Check appropriate runtime directory based on privileges
+    if [[ $EUID -eq 0 ]]; then
+        [ -d "/run/vpnctl" ]
+    else
+        [ -d "$XDG_RUNTIME_DIR/vpnctl" ]
+    fi
 }

@@ -2,7 +2,7 @@
 
 # VPNCTL - VPN Manager for Linux
 # XDG-compliant VPN connection manager with hybrid user/system support
-# 
+#
 # Copyright (c) 2025 VPNCTL Project
 # Licensed under the MIT License
 
@@ -47,8 +47,9 @@ fi
 
 # Configuration file paths
 readonly CONFIG_FILE="$CONFIG_DIR/config.ini"
-# PID file for future process management
-# readonly PID_FILE="$RUNTIME_DIR/vpnctl.pid"  # TODO: Implement process tracking
+# PID file for process management
+readonly PID_FILE="$RUNTIME_DIR/vpnctl.pid"
+readonly STATUS_FILE="$RUNTIME_DIR/vpnctl.status"
 readonly LOG_FILE="$LOG_DIR/vpnctl.log"
 
 # Debug mode
@@ -67,12 +68,12 @@ log() {
     local message="$2"
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
+
     # Write to log file only if log directory exists (avoid creating during init)
     if [[ -d "$(dirname "$LOG_FILE")" ]]; then
         echo "[$timestamp] [$level] $message" >> "$LOG_FILE"
     fi
-    
+
     # Output to stderr with colors
     case "$level" in
         "ERROR")
@@ -101,24 +102,25 @@ error_exit() {
 
 # Check dependencies
 check_dependencies() {
-    local missing_deps=()
-    
-    # Check for required commands
-    for cmd in openvpn wg-quick ip; do
-        if ! command -v "$cmd" &> /dev/null; then
-            missing_deps+=("$cmd")
+    local required_cmd="${1:-}"
+
+    # Check for specific command if provided
+    if [[ -n "$required_cmd" ]]; then
+        if ! command -v "$required_cmd" &> /dev/null; then
+            error_exit "Missing required dependency: $required_cmd"
         fi
-    done
-    
-    if [[ ${#missing_deps[@]} -gt 0 ]]; then
-        error_exit "Missing required dependencies: ${missing_deps[*]}"
+    else
+        # Check for basic commands only
+        if ! command -v "ip" &> /dev/null; then
+            error_exit "Missing required dependency: ip"
+        fi
     fi
 }
 
 # Initialize directories
 init_dirs() {
     local dirs=("$CONFIG_DIR" "$PROFILES_DIR" "$LOG_DIR" "$RUNTIME_DIR")
-    
+
     for dir in "${dirs[@]}"; do
         if [[ ! -d "$dir" ]]; then
             # Create directory without logging to avoid circular dependency
@@ -176,25 +178,350 @@ show_version() {
 # Connect command (stub)
 cmd_connect() {
     local profile="${1:-}"
-    
+
     if [[ -z "$profile" ]]; then
         error_exit "Profile name required. Use: $VPNCTL_NAME connect <profile>"
     fi
-    
-    local profile_file="$PROFILES_DIR/$profile.ovpn"
-    
-    if [[ ! -f "$profile_file" ]]; then
-        error_exit "Profile not found: $profile"
+
+    # Check if already connected
+    if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+        local current_profile=""
+        if [[ -f "$STATUS_FILE" ]]; then
+            current_profile=$(grep "profile=" "$STATUS_FILE" | cut -d'=' -f2)
+        fi
+        error_exit "VPN already connected${current_profile:+ to $current_profile}. Disconnect first with: $VPNCTL_NAME disconnect"
     fi
-    
-    log "INFO" "Connecting to profile: $profile"
-    echo "TODO: Implement VPN connection logic"
+
+    # Try both OpenVPN and WireGuard profile formats
+    local profile_file=""
+    local vpn_type=""
+
+    if [[ -f "$PROFILES_DIR/$profile.ovpn" ]]; then
+        profile_file="$PROFILES_DIR/$profile.ovpn"
+        vpn_type="openvpn"
+    elif [[ -f "$PROFILES_DIR/$profile.conf" ]]; then
+        profile_file="$PROFILES_DIR/$profile.conf"
+        vpn_type="wireguard"
+    else
+        error_exit "Profile not found: $profile (searched for $profile.ovpn and $profile.conf in $PROFILES_DIR)"
+    fi
+
+    log "INFO" "Connecting to profile: $profile ($vpn_type)"
+
+    # Clean up any stale files
+    [[ -f "$PID_FILE" ]] && rm -f "$PID_FILE"
+    [[ -f "$STATUS_FILE" ]] && rm -f "$STATUS_FILE"
+
+    # Check specific VPN dependency
+    case "$vpn_type" in
+        "openvpn")
+            check_dependencies "openvpn"
+            connect_openvpn "$profile" "$profile_file"
+            ;;
+        "wireguard")
+            check_dependencies "wg-quick"
+            connect_wireguard "$profile" "$profile_file"
+            ;;
+        *)
+            error_exit "Unknown VPN type: $vpn_type"
+            ;;
+    esac
 }
 
-# Disconnect command (stub)
+# Connect using OpenVPN
+connect_openvpn() {
+    local profile="$1"
+    local profile_file="$2"
+
+    log "INFO" "Starting OpenVPN connection"
+
+    # Determine if we need sudo
+    local sudo_cmd=""
+    if [[ $EUID -ne 0 ]]; then
+        sudo_cmd="sudo"
+        log "INFO" "Root privileges required for VPN connection, using sudo"
+    fi
+
+    # Start OpenVPN in background
+    if $sudo_cmd openvpn --config "$profile_file" --daemon --writepid "$PID_FILE" --log-append "$LOG_DIR/openvpn-$profile.log"; then
+        # Wait a moment for process to start
+        sleep 2
+
+        # Verify connection started
+        if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+            local pid
+            pid=$(cat "$PID_FILE")
+
+            # Write status file
+            cat > "$STATUS_FILE" << EOF
+profile=$profile
+type=openvpn
+pid=$pid
+started=$(date '+%Y-%m-%d %H:%M:%S')
+config_file=$profile_file
+EOF
+
+            log "SUCCESS" "OpenVPN connected successfully (PID: $pid)"
+            echo "✅ Connected to $profile (OpenVPN)"
+            echo "📄 Logs: $LOG_DIR/openvpn-$profile.log"
+            echo "🔍 Status: $VPNCTL_NAME status"
+        else
+            log "ERROR" "OpenVPN failed to start or died immediately"
+            error_exit "Failed to establish VPN connection. Check logs: $LOG_DIR/openvpn-$profile.log"
+        fi
+    else
+        log "ERROR" "Failed to start OpenVPN process"
+        error_exit "Failed to start OpenVPN. Check that openvpn is installed and profile is valid."
+    fi
+}
+
+# Connect using WireGuard
+connect_wireguard() {
+    local profile="$1"
+    local profile_file="$2"
+
+    log "INFO" "Starting WireGuard connection"
+
+    # Determine if we need sudo
+    local sudo_cmd=""
+    if [[ $EUID -ne 0 ]]; then
+        sudo_cmd="sudo"
+        log "INFO" "Root privileges required for VPN connection, using sudo"
+    fi
+
+    # Start WireGuard
+    if $sudo_cmd wg-quick up "$profile_file"; then
+        # WireGuard doesn't create PID files, so we track it differently
+        local wg_interface
+        wg_interface=$(basename "$profile_file" .conf)
+
+        # Find the WireGuard process (this is a simplified approach)
+        local wg_pid
+        wg_pid=$(pgrep -f "wg-quick.*$wg_interface" | head -n1)
+
+        if [[ -n "$wg_pid" ]]; then
+            echo "$wg_pid" > "$PID_FILE"
+        else
+            # Fallback: create a dummy PID since WireGuard runs in kernel space
+            echo "$$" > "$PID_FILE"
+        fi
+
+        # Write status file
+        cat > "$STATUS_FILE" << EOF
+profile=$profile
+type=wireguard
+interface=$wg_interface
+started=$(date '+%Y-%m-%d %H:%M:%S')
+config_file=$profile_file
+EOF
+
+        log "SUCCESS" "WireGuard connected successfully (Interface: $wg_interface)"
+        echo "✅ Connected to $profile (WireGuard)"
+        echo "🔧 Interface: $wg_interface"
+        echo "🔍 Status: $VPNCTL_NAME status"
+    else
+        log "ERROR" "Failed to start WireGuard"
+        error_exit "Failed to start WireGuard. Check that wireguard-tools is installed and profile is valid."
+    fi
+}
+
+# Disconnect command
 cmd_disconnect() {
     log "INFO" "Disconnecting VPN"
-    echo "TODO: Implement VPN disconnection logic"
+
+    # Check if there's an active connection
+    if [[ ! -f "$PID_FILE" ]]; then
+        echo "❌ No active VPN connection found"
+        log "INFO" "No PID file found - no active connection"
+        return 0
+    fi
+
+    local pid
+    pid=$(cat "$PID_FILE" 2>/dev/null)
+
+    if [[ -z "$pid" ]]; then
+        echo "❌ Invalid PID file - cleaning up stale files"
+        cleanup_connection_files
+        return 0
+    fi
+
+    # Get connection info from status file
+    local profile=""
+    local vpn_type=""
+    local interface=""
+
+    if [[ -f "$STATUS_FILE" ]]; then
+        profile=$(grep "^profile=" "$STATUS_FILE" 2>/dev/null | cut -d'=' -f2)
+        vpn_type=$(grep "^type=" "$STATUS_FILE" 2>/dev/null | cut -d'=' -f2)
+        interface=$(grep "^interface=" "$STATUS_FILE" 2>/dev/null | cut -d'=' -f2)
+    fi
+
+    # Check if process is actually running
+    if ! kill -0 "$pid" 2>/dev/null; then
+        echo "⚠️  VPN process not running - cleaning up stale files"
+        log "WARN" "PID $pid not running - cleaning up stale connection files"
+        cleanup_connection_files
+        return 0
+    fi
+
+    echo "🔌 Disconnecting${profile:+ from $profile} (PID: $pid)"
+    log "INFO" "Disconnecting VPN connection PID: $pid${profile:+, profile: $profile}"
+
+    # Disconnect based on VPN type
+    case "$vpn_type" in
+        "openvpn")
+            disconnect_openvpn "$pid" "$profile"
+            ;;
+        "wireguard")
+            disconnect_wireguard "$interface" "$profile"
+            ;;
+        "")
+            # Unknown type - try generic process termination
+            log "WARN" "Unknown VPN type - attempting generic disconnection"
+            disconnect_generic "$pid"
+            ;;
+        *)
+            log "WARN" "Unknown VPN type: $vpn_type - attempting generic disconnection"
+            disconnect_generic "$pid"
+            ;;
+    esac
+    # Clean up connection files
+    cleanup_connection_files
+
+    echo "✅ VPN disconnected successfully"
+    log "SUCCESS" "VPN disconnection completed"
+}
+
+# Disconnect OpenVPN
+disconnect_openvpn() {
+    local pid="$1"
+    local profile="$2"
+
+    log "INFO" "Disconnecting OpenVPN process (PID: $pid)"
+
+    # Determine if we need sudo
+    local sudo_cmd=""
+    if [[ $EUID -ne 0 ]]; then
+        sudo_cmd="sudo"
+        log "INFO" "Root privileges required for VPN disconnection, using sudo"
+    fi
+
+    # Try graceful termination first (SIGTERM)
+    if $sudo_cmd kill -TERM "$pid" 2>/dev/null; then
+        log "INFO" "Sent SIGTERM to OpenVPN process, waiting for graceful shutdown"
+
+        # Wait up to 10 seconds for graceful shutdown
+        local wait_count=0
+        while kill -0 "$pid" 2>/dev/null && [[ $wait_count -lt 10 ]]; do
+            sleep 1
+            ((wait_count++))
+        done
+
+        if kill -0 "$pid" 2>/dev/null; then
+            log "WARN" "OpenVPN did not respond to SIGTERM, using SIGKILL"
+            $sudo_cmd kill -KILL "$pid" 2>/dev/null
+            sleep 2
+        fi
+    else
+        log "WARN" "Could not send SIGTERM to process, trying SIGKILL"
+        $sudo_cmd kill -KILL "$pid" 2>/dev/null
+    fi
+
+    # Verify process is gone
+    if kill -0 "$pid" 2>/dev/null; then
+        log "ERROR" "Failed to terminate OpenVPN process"
+        error_exit "Failed to disconnect OpenVPN. Process may require manual intervention."
+    else
+        log "SUCCESS" "OpenVPN process terminated successfully"
+    fi
+}
+
+# Disconnect WireGuard
+disconnect_wireguard() {
+    local interface="$1"
+    local profile="$2"
+
+    log "INFO" "Disconnecting WireGuard interface: $interface"
+
+    # Determine if we need sudo
+    local sudo_cmd=""
+    if [[ $EUID -ne 0 ]]; then
+        sudo_cmd="sudo"
+        log "INFO" "Root privileges required for WireGuard disconnection, using sudo"
+    fi
+
+    # Use wg-quick to bring down the interface
+    if [[ -n "$interface" ]]; then
+        if $sudo_cmd wg-quick down "$interface" 2>/dev/null; then
+            log "SUCCESS" "WireGuard interface $interface disconnected successfully"
+        else
+            log "WARN" "wg-quick down failed, trying alternative method"
+            # Fallback: try to remove interface manually
+            if $sudo_cmd ip link delete "$interface" 2>/dev/null; then
+                log "SUCCESS" "WireGuard interface $interface removed manually"
+            else
+                log "ERROR" "Failed to disconnect WireGuard interface"
+            fi
+        fi
+    else
+        log "WARN" "No interface specified for WireGuard disconnection"
+        # Try to find and disconnect any WireGuard interfaces
+        local wg_interfaces
+        wg_interfaces=$($sudo_cmd wg show interfaces 2>/dev/null || echo "")
+
+        if [[ -n "$wg_interfaces" ]]; then
+            for iface in $wg_interfaces; do
+                log "INFO" "Found WireGuard interface: $iface, attempting disconnection"
+                $sudo_cmd wg-quick down "$iface" 2>/dev/null || true
+            done
+        fi
+    fi
+}
+
+# Generic process disconnection for unknown types
+disconnect_generic() {
+    local pid="$1"
+
+    log "INFO" "Attempting generic process termination (PID: $pid)"
+
+    # Determine if we need sudo (if the process was started with sudo)
+    local sudo_cmd=""
+    if [[ $EUID -ne 0 ]]; then
+        sudo_cmd="sudo"
+    fi
+
+    # Try graceful termination first
+    if $sudo_cmd kill -TERM "$pid" 2>/dev/null; then
+        # Wait up to 5 seconds for graceful shutdown
+        local wait_count=0
+        while kill -0 "$pid" 2>/dev/null && [[ $wait_count -lt 5 ]]; do
+            sleep 1
+            ((wait_count++))
+        done
+
+        # Force kill if still running
+        if kill -0 "$pid" 2>/dev/null; then
+            $sudo_cmd kill -KILL "$pid" 2>/dev/null
+        fi
+    fi
+
+    # Verify process is gone
+    if kill -0 "$pid" 2>/dev/null; then
+        log "ERROR" "Failed to terminate process $pid"
+    else
+        log "SUCCESS" "Process $pid terminated successfully"
+    fi
+}
+
+# Clean up connection tracking files
+cleanup_connection_files() {
+    if [[ -f "$PID_FILE" ]]; then
+        rm -f "$PID_FILE" && log "INFO" "Removed PID file"
+    fi
+
+    if [[ -f "$STATUS_FILE" ]]; then
+        rm -f "$STATUS_FILE" && log "INFO" "Removed status file"
+    fi
 }
 
 # Status command (stub)
@@ -206,15 +533,15 @@ cmd_status() {
 # List profiles command
 cmd_list() {
     log "INFO" "Listing available profiles"
-    
+
     if [[ ! -d "$PROFILES_DIR" ]]; then
         echo "No profiles directory found: $PROFILES_DIR"
         return 1
     fi
-    
+
     local profiles=("$PROFILES_DIR"/*.{ovpn,conf})
     local found=0
-    
+
     for profile in "${profiles[@]}"; do
         if [[ -f "$profile" ]]; then
             local basename
@@ -224,7 +551,7 @@ cmd_list() {
             found=1
         fi
     done
-    
+
     if [[ $found -eq 0 ]]; then
         echo "No VPN profiles found in $PROFILES_DIR"
         echo "Add profiles with: $VPNCTL_NAME add <file>"
@@ -234,15 +561,15 @@ cmd_list() {
 # Add profile command (stub)
 cmd_add() {
     local file="${1:-}"
-    
+
     if [[ -z "$file" ]]; then
         error_exit "Profile file required. Use: $VPNCTL_NAME add <file>"
     fi
-    
+
     if [[ ! -f "$file" ]]; then
         error_exit "Profile file not found: $file"
     fi
-    
+
     log "INFO" "Adding profile: $file"
     echo "TODO: Implement profile addition logic"
 }
@@ -268,18 +595,18 @@ cmd_logs() {
 main() {
     # Initialize
     init_dirs
-    
+
     # Parse command
     local command="${1:-help}"
     shift || true
-    
-    # Only check dependencies for commands that need them
+
+    # Check basic dependencies for commands that need network tools
     case "$command" in
-        "connect"|"disconnect")
+        "disconnect"|"status")
             check_dependencies
             ;;
     esac
-    
+
     case "$command" in
         "connect")
             cmd_connect "$@"

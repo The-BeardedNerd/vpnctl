@@ -85,5 +85,6 @@ local.just
 
 # Backup files
 *.bak
-*.backupdocs/WARP.md
+*.backup
+WARP.md
 docs/WARP.md

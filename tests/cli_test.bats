@@ -240,3 +240,61 @@ EOF
     [[ "$output" =~ "openvpn" ]] || [[ "$output" =~ "Missing required dependency: openvpn" ]]
     [[ ! "$output" =~ "wireguard" ]]
 }
+
+@test "vpnctl disconnect with no active connection" {
+    run "$VPNCTL_BIN" disconnect
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "No active VPN connection found" ]]
+}
+
+@test "vpnctl disconnect cleans up stale PID file" {
+    # Create a stale PID file with invalid PID
+    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+    echo "99999" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+
+    run "$VPNCTL_BIN" disconnect
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "VPN process not running" ]] || [[ "$output" =~ "cleaning up stale files" ]]
+
+    # PID file should be cleaned up
+    [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid" ]
+}
+
+@test "vpnctl disconnect cleans up empty PID file" {
+    # Create an empty PID file
+    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+    touch "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+
+    run "$VPNCTL_BIN" disconnect
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "Invalid PID file" ]] || [[ "$output" =~ "cleaning up stale files" ]]
+
+    # PID file should be cleaned up
+    [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid" ]
+}
+
+@test "vpnctl disconnect removes status file during cleanup" {
+    # Create stale connection files
+    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+    echo "99999" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+    cat > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" << EOF
+profile=test
+type=openvpn
+pid=99999
+started=$(date '+%Y-%m-%d %H:%M:%S')
+EOF
+
+    run "$VPNCTL_BIN" disconnect
+    [ "$status" -eq 0 ]
+
+    # Both files should be cleaned up
+    [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid" ]
+    [ ! -f "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" ]
+}
+
+@test "vpnctl disconnect creates runtime directory if needed" {
+    # Ensure directory exists for disconnect command
+    run "$VPNCTL_BIN" disconnect
+    [ "$status" -eq 0 ]
+    [ -d "$XDG_RUNTIME_DIR/vpnctl" ]
+}

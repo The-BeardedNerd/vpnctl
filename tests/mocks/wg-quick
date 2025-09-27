@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
 # Mock wg-quick command for testing
-echo "Mock WireGuard: $*"
-exit 0
+
+case "$1" in
+    "up")
+        echo "Mock WireGuard: bringing up interface $2"
+        exit 0
+        ;;
+    "down")
+        echo "Mock WireGuard: bringing down interface $2"
+        exit 0
+        ;;
+    *)
+        echo "Mock WireGuard: $*"
+        exit 0
+        ;;
+esac

@@ -142,10 +142,84 @@ teardown() {
     fi
 }
 
-@test "vpnctl status command executes" {
+@test "vpnctl status shows disconnected when no connection" {
     run "$VPNCTL_BIN" status
     [ "$status" -eq 0 ]
-    [[ "$output" =~ "TODO: Implement status check logic" ]]
+    [[ "$output" =~ "VPN Status: Disconnected" ]]
+    [[ "$output" =~ "No active VPN connection" ]]
+}
+
+@test "vpnctl status shows connection lost when PID file exists but process is dead" {
+    # Create a PID file with a non-existent PID
+    echo "99999" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+
+    # Create a status file
+    cat > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" << EOF
+profile=test
+type=openvpn
+pid=99999
+started=2025-01-01 12:00:00
+config_file=/test/test.ovpn
+EOF
+
+    run "$VPNCTL_BIN" status
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "VPN Status: Connection Lost" ]]
+    [[ "$output" =~ "Process is no longer running" ]]
+    [[ "$output" =~ "cleaning up stale connection files" ]]
+}
+
+@test "vpnctl status shows connection info when connected (mock)" {
+    # Create a mock PID file with current shell PID (guaranteed to exist)
+    echo "$$" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+
+    # Create a status file
+    cat > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" << EOF
+profile=test-server
+type=openvpn
+pid=$$
+started=$(date '+%Y-%m-%d %H:%M:%S')
+config_file=/test/test-server.ovpn
+EOF
+
+    run "$VPNCTL_BIN" status
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "VPN Status: Connected" ]]
+    [[ "$output" =~ "Profile: test-server" ]]
+    [[ "$output" =~ "Type: OPENVPN" ]]
+    [[ "$output" =~ "PID: $$" ]]
+    [[ "$output" =~ "Duration:" ]]
+}
+
+@test "vpnctl status handles WireGuard connection type" {
+    # Create a mock PID file with current shell PID
+    echo "$$" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+
+    # Create a WireGuard status file
+    cat > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" << EOF
+profile=wg-server
+type=wireguard
+interface=wg0
+started=$(date '+%Y-%m-%d %H:%M:%S')
+config_file=/test/wg-server.conf
+EOF
+
+    run "$VPNCTL_BIN" status
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "VPN Status: Connected" ]]
+    [[ "$output" =~ "Profile: wg-server" ]]
+    [[ "$output" =~ "Type: WIREGUARD" ]]
+    [[ "$output" =~ "Config: /test/wg-server.conf" ]]
+}
+
+@test "vpnctl status handles missing status file gracefully" {
+    # Create only PID file, no status file
+    echo "$$" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+
+    run "$VPNCTL_BIN" status
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ "VPN Status: Disconnected" ]]
+    [[ "$output" =~ "No active VPN connection" ]]
 }
 
 @test "vpnctl disconnect command executes" {

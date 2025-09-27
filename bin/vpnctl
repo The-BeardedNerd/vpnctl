@@ -527,7 +527,183 @@ cleanup_connection_files() {
 # Status command (stub)
 cmd_status() {
 	log "INFO" "Checking VPN status"
-	echo "TODO: Implement status check logic"
+
+	# Check if there's an active connection
+	if [[ ! -f "$PID_FILE" ]] || [[ ! -f "$STATUS_FILE" ]]; then
+		echo "🔴 VPN Status: Disconnected"
+		echo "   No active VPN connection"
+		echo ""
+		echo "💡 To connect: $VPNCTL_NAME connect <profile>"
+		echo "📋 Available profiles: $VPNCTL_NAME list"
+		return 0
+	fi
+
+	# Read PID and validate process
+	local pid
+	pid=$(cat "$PID_FILE" 2>/dev/null)
+
+	if [[ -z "$pid" ]] || ! kill -0 "$pid" 2>/dev/null; then
+		echo "⚠️  VPN Status: Connection Lost"
+		echo "   Process is no longer running (PID: ${pid:-unknown})"
+		echo "   Cleaning up stale connection files..."
+		cleanup_connection_files
+		return 0
+	fi
+
+	# Parse status file
+	local profile vpn_type started config_file interface
+	profile=$(grep "^profile=" "$STATUS_FILE" 2>/dev/null | cut -d'=' -f2)
+	vpn_type=$(grep "^type=" "$STATUS_FILE" 2>/dev/null | cut -d'=' -f2)
+	started=$(grep "^started=" "$STATUS_FILE" 2>/dev/null | cut -d'=' -f2)
+	config_file=$(grep "^config_file=" "$STATUS_FILE" 2>/dev/null | cut -d'=' -f2)
+	interface=$(grep "^interface=" "$STATUS_FILE" 2>/dev/null | cut -d'=' -f2)
+
+	# Calculate connection duration
+	local duration=""
+	if [[ -n "$started" ]]; then
+		local start_epoch current_epoch duration_seconds
+		start_epoch=$(date -d "$started" +%s 2>/dev/null || echo "0")
+		current_epoch=$(date +%s)
+		duration_seconds=$((current_epoch - start_epoch))
+
+		if [[ $duration_seconds -gt 0 ]]; then
+			local hours minutes seconds
+			hours=$((duration_seconds / 3600))
+			minutes=$(((duration_seconds % 3600) / 60))
+			seconds=$((duration_seconds % 60))
+			duration=$(printf "%02d:%02d:%02d" "$hours" "$minutes" "$seconds")
+		fi
+	fi
+
+	# Display main status
+	echo "🟢 VPN Status: Connected"
+	echo "   Profile: ${profile:-Unknown}"
+	echo "   Type: $(echo "${vpn_type:-Unknown}" | tr '[:lower:]' '[:upper:]')"
+	echo "   PID: $pid"
+	[[ -n "$duration" ]] && echo "   Duration: $duration"
+	[[ -n "$started" ]] && echo "   Started: $started"
+
+	# Show network information based on VPN type
+	case "$vpn_type" in
+	"openvpn")
+		show_openvpn_status "$interface"
+		;;
+	"wireguard")
+		show_wireguard_status "$interface"
+		;;
+	*)
+		echo "   Interface: ${interface:-Unknown}"
+		;;
+	esac
+
+	# Show configuration file
+	[[ -n "$config_file" ]] && echo "   Config: $config_file"
+
+	# Show log information
+	case "$vpn_type" in
+	"openvpn")
+		local log_file="$LOG_DIR/openvpn-$profile.log"
+		[[ -f "$log_file" ]] && echo "   Logs: $log_file"
+		;;
+	"wireguard")
+		echo "   Logs: Use 'journalctl -u wg-quick@${interface:-wg0}' or 'dmesg | grep wireguard'"
+		;;
+	esac
+
+	echo ""
+	echo "💡 To disconnect: $VPNCTL_NAME disconnect"
+	echo "📊 To view logs: $VPNCTL_NAME logs"
+}
+
+# Show OpenVPN specific status information
+show_openvpn_status() {
+	local interface="${1:-tun0}"
+
+	# Try to detect the actual interface
+	local actual_interface
+	actual_interface=$(ip link show | grep -E "tun[0-9]+|tap[0-9]+" | head -n1 | cut -d: -f2 | tr -d ' ')
+
+	if [[ -n "$actual_interface" ]]; then
+		interface="$actual_interface"
+		echo "   Interface: $interface"
+
+		# Get IP address
+		local vpn_ip
+		vpn_ip=$(ip addr show "$interface" 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d'/' -f1)
+		[[ -n "$vpn_ip" ]] && echo "   VPN IP: $vpn_ip"
+
+		# Get interface statistics
+		local stats
+		stats=$(ip -s link show "$interface" 2>/dev/null | tail -n 2)
+		if [[ -n "$stats" ]]; then
+			local rx_bytes tx_bytes
+			rx_bytes=$(echo "$stats" | head -n1 | awk '{print $1}')
+			tx_bytes=$(echo "$stats" | head -n1 | awk '{print $9}')
+
+			if [[ -n "$rx_bytes" ]] && [[ -n "$tx_bytes" ]]; then
+				echo "   Traffic: RX $(format_bytes "$rx_bytes") / TX $(format_bytes "$tx_bytes")"
+			fi
+		fi
+	else
+		echo "   Interface: Not detected (may be initializing)"
+	fi
+}
+
+# Show WireGuard specific status information
+show_wireguard_status() {
+	local interface="${1:-wg0}"
+
+	if command -v wg &>/dev/null && [[ -n "$interface" ]]; then
+		echo "   Interface: $interface"
+
+		# Get WireGuard status
+		local wg_status
+		wg_status=$(sudo wg show "$interface" 2>/dev/null)
+
+		if [[ -n "$wg_status" ]]; then
+			# Extract peer information
+			local peer_count
+			peer_count=$(echo "$wg_status" | grep -c "peer:")
+			[[ $peer_count -gt 0 ]] && echo "   Peers: $peer_count"
+
+			# Get endpoint if available
+			local endpoint
+			endpoint=$(echo "$wg_status" | grep "endpoint:" | head -n1 | cut -d' ' -f2)
+			[[ -n "$endpoint" ]] && echo "   Endpoint: $endpoint"
+
+			# Get transfer statistics
+			local transfer
+			transfer=$(echo "$wg_status" | grep "transfer:" | head -n1 | cut -d' ' -f2-)
+			[[ -n "$transfer" ]] && echo "   Transfer: $transfer"
+		fi
+
+		# Get IP address from interface
+		local vpn_ip
+		vpn_ip=$(ip addr show "$interface" 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d'/' -f1)
+		[[ -n "$vpn_ip" ]] && echo "   VPN IP: $vpn_ip"
+	else
+		echo "   Interface: $interface (WireGuard tools not available for detailed status)"
+	fi
+}
+
+# Format bytes in human readable format
+format_bytes() {
+	local bytes="$1"
+
+	if [[ -z "$bytes" ]] || [[ ! "$bytes" =~ ^[0-9]+$ ]]; then
+		echo "N/A"
+		return
+	fi
+
+	if [[ $bytes -ge 1073741824 ]]; then
+		awk "BEGIN {printf \"%.1f GB\", $bytes/1073741824}"
+	elif [[ $bytes -ge 1048576 ]]; then
+		awk "BEGIN {printf \"%.1f MB\", $bytes/1048576}"
+	elif [[ $bytes -ge 1024 ]]; then
+		awk "BEGIN {printf \"%.1f KB\", $bytes/1024}"
+	else
+		echo "${bytes} B"
+	fi
 }
 
 # List profiles command

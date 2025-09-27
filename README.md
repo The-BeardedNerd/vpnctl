@@ -29,9 +29,9 @@
 - ✅ **Process Management**: PID tracking, graceful termination, and cleanup
 - ✅ **Connection Lifecycle**: Complete connect → disconnect workflow with status tracking
 
-### **🚧 In Development (Advanced VPN)**
+### **✅ Implemented (Core VPN)**
 
-- 🚧 **Status Monitoring**: Real-time connection status and health checks
+- ✅ **Status Monitoring**: Real-time connection status and health checks
 - 🚧 **Profile Management**: Add, remove, list VPN profiles
 - 🚧 **DNS Management**: Automatic DNS configuration
 
@@ -75,7 +75,7 @@ sudo ./scripts/install.sh
 ```bash
 vpnctl connect my-profile      # Connect to VPN (✅ Available)
 vpnctl disconnect              # Disconnect VPN (✅ Available)
-vpnctl status                  # Show connection info (🚧 In Development)
+vpnctl status                  # Show connection info (✅ Available)
 vpnctl fix-dns                 # Reset DNS (🚧 In Development)
 ```
 
@@ -105,11 +105,15 @@ vpnctl-tui  # Launch interactive menu
    ```bash
    vpnctl connect proton
    ```
-3. **Disconnect** (✅ Available):
+3. **Check Status** (✅ Available):
+   ```bash
+   vpnctl status
+   ```
+4. **Disconnect** (✅ Available):
    ```bash
    vpnctl disconnect
    ```
-4. **Monitor (Background)** (📋 Planned):
+5. **Monitor (Background)** (📋 Planned):
    ```bash
    sudo systemctl enable --now vpnctl-monitor  # System-wide
    systemctl --user enable --now vpnctl-monitor  # User-level
@@ -140,7 +144,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 - ✅ **Multi-distribution CI/CD**: Automated testing on Arch, Ubuntu, Fedora
 - ✅ **Containerized Development**: Podman-based isolated environments
-- ✅ **BATS Testing**: 26 comprehensive tests with 100% pass rate
+- ✅ **BATS Testing**: 27 comprehensive tests with 100% pass rate
 - ✅ **GitHub Actions**: Full automation with branch protection
 - ✅ **Code Quality**: ShellCheck linting and security scanning
 - ✅ **Professional Workflow**: Conventional commits and PR templates

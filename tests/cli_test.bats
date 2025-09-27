@@ -150,6 +150,9 @@ teardown() {
 }
 
 @test "vpnctl status shows connection lost when PID file exists but process is dead" {
+    # Ensure runtime directory exists
+    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+
     # Create a PID file with a non-existent PID
     echo "99999" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
 
@@ -170,6 +173,9 @@ EOF
 }
 
 @test "vpnctl status shows connection info when connected (mock)" {
+    # Ensure runtime directory exists
+    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+
     # Create a mock PID file with current shell PID (guaranteed to exist)
     echo "$$" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
 
@@ -192,6 +198,9 @@ EOF
 }
 
 @test "vpnctl status handles WireGuard connection type" {
+    # Ensure runtime directory exists
+    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+
     # Create a mock PID file with current shell PID
     echo "$$" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
 
@@ -213,6 +222,9 @@ EOF
 }
 
 @test "vpnctl status handles missing status file gracefully" {
+    # Ensure runtime directory exists
+    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+
     # Create only PID file, no status file
     echo "$$" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
 

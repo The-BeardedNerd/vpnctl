@@ -150,17 +150,17 @@ teardown() {
 }
 
 @test "vpnctl status shows connection lost when PID file exists but process is dead" {
-    # Ensure runtime directory exists
-    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+    # Run the command to ensure directories are created
+    run "$VPNCTL_BIN" status
 
-    # Create a PID file with a non-existent PID
-    echo "99999" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+    # Create a PID file with a non-existent PID (using a very high number unlikely to exist)
+    echo "999999" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
 
     # Create a status file
     cat > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" << EOF
 profile=test
 type=openvpn
-pid=99999
+pid=999999
 started=2025-01-01 12:00:00
 config_file=/test/test.ovpn
 EOF
@@ -173,17 +173,17 @@ EOF
 }
 
 @test "vpnctl status shows connection info when connected (mock)" {
-    # Ensure runtime directory exists
-    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+    # Run the command to ensure directories are created
+    run "$VPNCTL_BIN" status
 
-    # Create a mock PID file with current shell PID (guaranteed to exist)
-    echo "$$" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+    # Use PID 1 which should always exist in containers
+    echo "1" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
 
     # Create a status file
     cat > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" << EOF
 profile=test-server
 type=openvpn
-pid=$$
+pid=1
 started=$(date '+%Y-%m-%d %H:%M:%S')
 config_file=/test/test-server.ovpn
 EOF
@@ -193,16 +193,16 @@ EOF
     [[ "$output" =~ "VPN Status: Connected" ]]
     [[ "$output" =~ "Profile: test-server" ]]
     [[ "$output" =~ "Type: OPENVPN" ]]
-    [[ "$output" =~ "PID: $$" ]]
+    [[ "$output" =~ "PID: 1" ]]
     [[ "$output" =~ "Duration:" ]]
 }
 
 @test "vpnctl status handles WireGuard connection type" {
-    # Ensure runtime directory exists
-    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+    # Run the command to ensure directories are created
+    run "$VPNCTL_BIN" status
 
-    # Create a mock PID file with current shell PID
-    echo "$$" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+    # Use PID 1 which should always exist in containers
+    echo "1" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
 
     # Create a WireGuard status file
     cat > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.status" << EOF
@@ -222,11 +222,11 @@ EOF
 }
 
 @test "vpnctl status handles missing status file gracefully" {
-    # Ensure runtime directory exists
-    mkdir -p "$XDG_RUNTIME_DIR/vpnctl"
+    # Run the command to ensure directories are created
+    run "$VPNCTL_BIN" status
 
-    # Create only PID file, no status file
-    echo "$$" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
+    # Create only PID file, no status file (use PID 1)
+    echo "1" > "$XDG_RUNTIME_DIR/vpnctl/vpnctl.pid"
 
     run "$VPNCTL_BIN" status
     [ "$status" -eq 0 ]

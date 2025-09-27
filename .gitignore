@@ -88,3 +88,6 @@ local.just
 *.backup
 WARP.md
 docs/WARP.md
+
+# Editor-specific AI assistant rules
+.zed/
